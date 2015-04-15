@@ -33,9 +33,11 @@ for i=1:nt
        surf(x,y,z,u');
        colorbar;
        caxis([-1.0 1.0])
+       title_str = sprintf('N= %.0d v1 =%.2f v2 =%.2f time = %.2f',N,v1,v2,time);
        xlabel('x');
        ylabel('y');
        zlabel('z');
+       title(title_str);
        M(i./10) = getframe;
    end
    
