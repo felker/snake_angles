@@ -97,4 +97,15 @@ for i=1:nt
 end
 pause();
 figure
-movie(M)
+%movie(M)
+%Now, make a gif
+filename= 'vtheta_advection.gif';
+for i=1:n./10
+im = frame2im(M(i)); 
+[A,map] = rgb2ind(im,256); 
+    if i == 1;
+		imwrite(A,map,filename,'gif','LoopCount',Inf,'DelayTime',1);
+	else
+		imwrite(A,map,filename,'gif','WriteMode','append','DelayTime',1);
+    end
+end
