@@ -100,7 +100,7 @@ figure
 %movie(M)
 %Now, make a gif
 filename= 'vtheta_advection.gif';
-for i=1:n./10
+for i=1:nt./10
 im = frame2im(M(i)); 
 [A,map] = rgb2ind(im,256); 
     if i == 1;

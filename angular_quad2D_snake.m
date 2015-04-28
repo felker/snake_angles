@@ -267,5 +267,43 @@ ct = cos(t);
 % end
 
 
-
+%THIS STUFF IS TAKEN FROM SNAKE_ANGLES.M FOR CALUCLATING FLUXES FROM
+%MU_ORDERED-- WHICH WE ARE NO LONGER USING
+    %Hardcode the donor cell method for solid angle cells at each spatial
+    %point
+%     for n=1:nx_r 
+%         for p=1:ny_r
+%             %Longitudanal flux (dimension 1 in array)
+%             for j=1:ntheta/2 %positive mu_y
+%                 for k=1:j %one quadrant is a lower triangular matrix
+%                     l = ntheta/2 + k; %positive mu_x
+%                     m = ntheta/2 + 1 -k; %negative mu_x
+%                     if k==j %we have reached the ends of row of mu_ordered
+%                     end
+%                     %Need to find the lattitudanal neighbors at the ends
+%                     %of the array?
+%                 end
+%             end
+%                     
+%             %Lattitudanal flux (dimension 2 in array)
+%             %handle coordinate singularity at poles 
+%         end
+%     end
+%            for j=1:ntheta/2 %positive mu_y
+%                 for k=1:j %one quadrant is a lower triangular matrix 
+%                     l = ntheta/2 + k; %positive mu_x
+%                     m = ntheta/2 + 1 -k; %negative mu_x
+%                     C2(n,p,j,l) = A*k^2*sin(k*xx(n))*(1+2*beta(n).^2)*mu_ordered(j,l,1).^2; %beta(x)
+%                     C2(n,p,j,m) = A*k^2*sin(k*xx(n))*(1+2*beta(n).^2)*mu_ordered(j,m,1).^2;
+%                 end
+%             end
+%             for j=ntheta:-1:ntheta/2+1 %negative mu_y
+%                 for k=1:(ntheta-j+1) %one quadrant is a lower triangular matrix 
+%                     l = ntheta/2 + k; %positive mu_x
+%                     m = ntheta/2 + 1 -k; %negative mu_x
+%                     %compute C^2
+%                     C2(n,p,j,l) = A*k^2*sin(k*xx(n))*(1+2*beta(n).^2)*mu_ordered(j,l,1).^2; %beta(x)
+%                     C2(n,p,j,m) = A*k^2*sin(k*xx(n))*(1+2*beta(n).^2)*mu_ordered(j,m,1).^2;
+%                 end
+%             end
 end

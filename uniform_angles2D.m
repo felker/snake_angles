@@ -54,7 +54,6 @@ function [ncells,nxa,mu,mu_b,pw] = uniform_angles2D(N)
 %NEVERMIND--- WE WANT TO DISCRETIZE THE PARAMETERS: THETA, PHI
 %In 2D problems,theta \in [0, pi], \phi
 %Lets just do the entire 2-sphere
-close all
 
 % theta = linspace(0,2.0*pi,N);
 % phi = linspace(0,pi,N/2);
@@ -78,6 +77,7 @@ kz = ones(N,1)*cos(phi);
 t=0:0.01:2*pi;
 st = sin(t);
 ct = cos(t);
+figure(1);
 hold on;
 for i=1:nxa(2) %at fixed phi. in x-y plane, doesnt include poles
      radius = sqrt(1-cos(phi(i)).^2);
@@ -107,6 +107,8 @@ end
 ncells= nxa(1)*(nxa(2)-1);
 mu_b = zeros(nxa(1),nxa(2),3);
 %these are the \hat{k} boundaries of each solid angle cell
+
+%THESE ARE IN SNAKE BASIS, NOT CARTESIAN!!
 mu_b(:,:,1) = kx;
 mu_b(:,:,2) = ky;
 mu_b(:,:,3) = kz;
@@ -122,7 +124,8 @@ for i=1:nxa(1)-1
     end
 end
 %wrap around theta dimension. the first angle should be theta=2pi, not
-%theta=0. This matters for averaging
+%theta=0. This matters for averaging, otherwise you wont get hte last theta
+%ray
 for j=1:nxa(2)-1
         mu(N,j,1) = cos((theta(N) + 2*pi)./2)*sin((phi(j) + phi(j+1))./2);
         mu(N,j,2) = sin((theta(N) + 2*pi)./2)*sin((phi(j) + phi(j+1))./2);
@@ -137,7 +140,7 @@ end
 xlabel('x');
 ylabel('y');
 zlabel('z');
-
+hold off;
 %quadrature weights. Should this be proportional to the "size of the cell"?
 pw = 1./(ncells)*ones(nxa(1),nxa(2)-1);
 %the trick is ensuring unit norm of each cell boundary... if we were
