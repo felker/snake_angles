@@ -13,7 +13,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.1;
-nt = 300;
+nt = 80;
 
 N=6;
 normalization_tol = 1e-6;
@@ -116,7 +116,7 @@ for i=0:nt
     
     %Inject a ray in the -x +y direction from x_max, y_min (
     for j=1:num_ghost
-        intensity(ie+j,js+ny/2,3,2) = 1.0;
+        intensity(ie+j,js+n,3,2) = 1.0;
     end
     
     %Substep #1: Explicitly advance transport term
@@ -155,7 +155,7 @@ for i=0:nt
                 num2str(mu(j,l,3),'%.3f'),')'];
             title(subtitle,'Interpreter','latex');      
             xlabel('x');
-            ylabel('y');
+            ylabel('y + A sin(kx)');
             colorbar
         end
         %Mean intensity plot
@@ -198,38 +198,38 @@ for i=1:nx_r
     end
 end
 %PLOT VARIATION OF ANGLES ALONG X
-% l=2; %mu(:,2,3)= 0.3827
-% %at a particular \phi' 
-% figure(10);
-% for n=nx_r:-1:1
-%     p= 1;
-%     beta_temp = beta(n);
-%     for k=1:nxa(1)
-%         %Transform snake rays to cartesian basis, DONT RENORMALIZE
-%         mu_unprimed = zeros(3,1);
-%         mu_unprimed(1) = mu_s(n,p,k,l,1);
-%         mu_unprimed(2) = (mu_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_s(n,p,k,l,1));
-%         mu_unprimed(3) = mu_s(n,p,k,l,3);
-%         %check normalization of vector in cartesian basis
-%         assert(abs(mu_unprimed'*mu_unprimed - 1.0) < normalization_tol);
-%         theta_s = atan2(mu_unprimed(2),mu_unprimed(1)); 
-%         quiver(0,0,cos(theta_s),sin(theta_s),0,'-r');
-%         hold on; 
-%         axis([-1 1 -1 1]);
-%         mu_b_unprimed = zeros(3,1);
-%         mu_b_unprimed(1) = mu_b_s(n,p,k,l,1);
-%         mu_b_unprimed(2) = (mu_b_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_b_s(n,p,k,l,1));
-%         mu_b_unprimed(3) = mu_b_s(n,p,k,l,3);
-%         assert(abs(mu_b_unprimed'*mu_b_unprimed - 1.0) < normalization_tol);
-%         theta_b = atan2(mu_b_unprimed(2),mu_b_unprimed(1)); 
-%         quiver(0,0,cos(theta_b),sin(theta_b),0,'-k');        
-%         titlestr = ['x =',num2str(xx(n)),',\mbox{   }','$$\frac{2xk}{\pi} =$$',num2str(xx(n)*2*K/pi)];
-%         title(titlestr,'Interpreter','latex');
-%         %quiver3(0,0,0,mu_s(n,p,k,l,1),mu_s(n,p,k,l,2),mu_s(n,p,k,l,3))
-%     end
-%     hold off; 
-%     pause(); 
-% end
+l=2; %mu(:,2,3)= 0.3827
+%at a particular \phi' 
+figure(10);
+for n=nx_r:-1:1
+    p= 1;
+    beta_temp = beta(n);
+    for k=1:nxa(1)
+        %Transform snake rays to cartesian basis, DONT RENORMALIZE
+        mu_unprimed = zeros(3,1);
+        mu_unprimed(1) = mu_s(n,p,k,l,1);
+        mu_unprimed(2) = (mu_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_s(n,p,k,l,1));
+        mu_unprimed(3) = mu_s(n,p,k,l,3);
+        %check normalization of vector in cartesian basis
+        assert(abs(mu_unprimed'*mu_unprimed - 1.0) < normalization_tol);
+        theta_s = atan2(mu_unprimed(2),mu_unprimed(1)); 
+        quiver(0,0,cos(theta_s),sin(theta_s),0,'-r');
+        hold on; 
+        axis([-1 1 -1 1]);
+        mu_b_unprimed = zeros(3,1);
+        mu_b_unprimed(1) = mu_b_s(n,p,k,l,1);
+        mu_b_unprimed(2) = (mu_b_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_b_s(n,p,k,l,1));
+        mu_b_unprimed(3) = mu_b_s(n,p,k,l,3);
+        assert(abs(mu_b_unprimed'*mu_b_unprimed - 1.0) < normalization_tol);
+        theta_b = atan2(mu_b_unprimed(2),mu_b_unprimed(1)); 
+        quiver(0,0,cos(theta_b),sin(theta_b),0,'-k');        
+        titlestr = ['x =',num2str(xx(n)),',\mbox{   }','$$\frac{2xk}{\pi} =$$',num2str(xx(n)*2*K/pi)];
+        title(titlestr,'Interpreter','latex');
+        %quiver3(0,0,0,mu_s(n,p,k,l,1),mu_s(n,p,k,l,2),mu_s(n,p,k,l,3))
+    end
+    hold off; 
+    pause(); 
+end
 
 count = 0; 
 intensity_snake = zeros(nx_r,ny_r,nxa(1),nxa(2)-1); 
@@ -246,6 +246,17 @@ for n=1:nx_r %should use overlap of solid angle bins
                 %check that transformed vector has norm 1 in snake coords
                 assert(abs(snake_norm(mu_prime,sqrt(1+beta(n)^2),beta(n)) - 1.0) < normalization_tol);
 
+%           THE ISSUE LIES WITH THE SNAKE RENORMALIZATION MESSING WITH THE
+%           MU_Z COMPONENTS
+
+                %debug at one point in space
+%                 if (n==nx_r-2 && p== 4)
+%                     j
+%                     intensity(n,p,j,l)
+%                     mu(j,l,:)
+%                     mu_s(n,p,j,l,:)
+%                     mu_prime
+%                 end
                 %find new mu bin
                 for k=1:nxa(1)
                     if k==nxa(1) %theta bins are ordered and periodic
