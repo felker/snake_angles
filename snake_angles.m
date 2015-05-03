@@ -287,13 +287,15 @@ for i=0:nt
             %intensity matrix
             h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity(is:ie,js:je,j,l));
             %turn off grid lines
-            %set(h, 'EdgeColor', 'none');
+            set(h, 'EdgeColor', 'none');
             
             %this string formatter doesnt work for some reason
             %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-            subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-                num2str(mu(j,l,3),'%.3f'),')'];
-            title(subtitle,'Interpreter','latex');      
+            subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+            title(subtitle);
+            %subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+            %    num2str(mu(j,l,3),'%.3f'),')'];
+            %title(subtitle,'Interpreter','latex');      
             xlabel('x');
             ylabel('y + A sin(kx)');
             colorbar

@@ -6,14 +6,14 @@ clear all;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 40;
+nx = 100;
 ny = nx;
 
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.1;
-nt = 300;
+nt = 200;
 
 N=6;
 normalization_tol = 1e-6;
@@ -114,7 +114,7 @@ for i=0:nt
         %SNAKE periodic boundary conditions TBD
     end
     
-    %Inject a ray in the -x +y direction from x_max, y_min (
+    %Inject a ray in the -x +y direction from x_max, y_middle
     for j=1:num_ghost
         intensity(ie+j,js+ny/2,3,2) = 1.0;
     end
@@ -150,10 +150,13 @@ for i=0:nt
             hi = subplot(2,3,j); 
             h = pcolor(xx,yy,intensity(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2,j,l)');
             %turn off grid lines
-            %set(h, 'EdgeColor', 'none');
-            subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-                num2str(mu(j,l,3),'%.3f'),')'];
-            title(subtitle,'Interpreter','latex');      
+            set(h, 'EdgeColor', 'none');
+            %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+            subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+            title(subtitle);
+           % subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+             %   num2str(mu(j,l,3),'%.3f'),')'];
+            %title(subtitle,'Interpreter','latex');      
             xlabel('x');
             ylabel('y');
             colorbar
@@ -178,58 +181,55 @@ for i=1:nx_r
     for j=1:ny_r
         for k=1:nxa(1)
             for l=1:nxa(2)-1
-%                 normalization_s = 1./sqrt(1+(beta_temp*mu(k,l,1)).^2 - 2*beta_temp*mu(k,l,1)*mu(k,l,2));
-%                 normalization_b = 1./sqrt(1+(beta_temp*mu_b(k,l,1)).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2));
- normalization_s = 1./sqrt((1+beta_temp.^2)*mu(k,l,1).^2 - 2*beta_temp*mu(k,l,1)*mu(k,l,2) + mu(k,l,2).^2 + mu(k,l,3).^2);
- normalization_b = 1./sqrt((1+beta_temp.^2)*mu_b(k,l,1).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2) + mu_b(k,l,2).^2 + mu_b(k,l,3).^2);
-
- mu_s(i,j,k,l,:) = mu(k,l,:).*normalization_s; 
+                normalization_s = 1./sqrt((1+beta_temp.^2)*mu(k,l,1).^2 - 2*beta_temp*mu(k,l,1)*mu(k,l,2) + mu(k,l,2).^2 + mu(k,l,3).^2);
+                normalization_b = 1./sqrt((1+beta_temp.^2)*mu_b(k,l,1).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2) + mu_b(k,l,2).^2 + mu_b(k,l,3).^2);
+                mu_s(i,j,k,l,:) = mu(k,l,:).*normalization_s; 
                 mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b; 
                 %check that each ray has unit spacelike norm in snake coords
                 assert(abs(snake_norm(squeeze(mu_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp) - 1.0) < normalization_tol);
                 assert(abs(snake_norm(squeeze(mu_b_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp)-1.0) < normalization_tol);
             end
+            %Handle extra boundary line
             l=nxa(2);
-%            normalization_b = 1./sqrt(1+(beta_temp*mu_b(k,l,1)).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2));
- normalization_b = 1./sqrt((1+beta_temp.^2)*mu_b(k,l,1).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2) + mu_b(k,l,2).^2 + mu_b(k,l,3).^2);
-    mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b; 
+            normalization_b = 1./sqrt((1+beta_temp.^2)*mu_b(k,l,1).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2) + mu_b(k,l,2).^2 + mu_b(k,l,3).^2);
+            mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b; 
             assert(snake_norm(squeeze(mu_b_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp)==1)
         end
     end
 end
 %PLOT VARIATION OF ANGLES ALONG X
-% l=2; %mu(:,2,3)= 0.3827
-% %at a particular \phi' 
-% figure(10);
-% for n=nx_r:-1:1
-%     p= 1;
-%     beta_temp = beta(n);
-%     for k=1:nxa(1)
-%         %Transform snake rays to cartesian basis, DONT RENORMALIZE
-%         mu_unprimed = zeros(3,1);
-%         mu_unprimed(1) = mu_s(n,p,k,l,1);
-%         mu_unprimed(2) = (mu_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_s(n,p,k,l,1));
-%         mu_unprimed(3) = mu_s(n,p,k,l,3);
-%         %check normalization of vector in cartesian basis
-%         assert(abs(mu_unprimed'*mu_unprimed - 1.0) < normalization_tol);
-%         theta_s = atan2(mu_unprimed(2),mu_unprimed(1)); 
-%         quiver(0,0,cos(theta_s),sin(theta_s),0,'-r');
-%         hold on; 
-%         axis([-1 1 -1 1]);
-%         mu_b_unprimed = zeros(3,1);
-%         mu_b_unprimed(1) = mu_b_s(n,p,k,l,1);
-%         mu_b_unprimed(2) = (mu_b_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_b_s(n,p,k,l,1));
-%         mu_b_unprimed(3) = mu_b_s(n,p,k,l,3);
-%         assert(abs(mu_b_unprimed'*mu_b_unprimed - 1.0) < normalization_tol);
-%         theta_b = atan2(mu_b_unprimed(2),mu_b_unprimed(1)); 
-%         quiver(0,0,cos(theta_b),sin(theta_b),0,'-k');        
-%         titlestr = ['x =',num2str(xx(n)),',\mbox{   }','$$\frac{2xk}{\pi} =$$',num2str(xx(n)*2*K/pi)];
-%         title(titlestr,'Interpreter','latex');
-%         %quiver3(0,0,0,mu_s(n,p,k,l,1),mu_s(n,p,k,l,2),mu_s(n,p,k,l,3))
-%     end
-%     hold off; 
-%     pause(); 
-% end
+l=2; %mu(:,2,3)= 0.3827
+%at a particular \phi' 
+figure(10);
+for n=nx_r:-1:1
+    p= 1;
+    beta_temp = beta(n);
+    for k=1:nxa(1)
+        %Transform snake rays to cartesian basis, DONT RENORMALIZE
+        mu_unprimed = zeros(3,1);
+        mu_unprimed(1) = mu_s(n,p,k,l,1);
+        mu_unprimed(2) = (mu_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_s(n,p,k,l,1));
+        mu_unprimed(3) = mu_s(n,p,k,l,3);
+        %check normalization of vector in cartesian basis
+        assert(abs(mu_unprimed'*mu_unprimed - 1.0) < normalization_tol);
+        theta_s = atan2(mu_unprimed(2),mu_unprimed(1)); 
+        quiver(0,0,cos(theta_s),sin(theta_s),0,'-r');
+        hold on; 
+        axis([-1 1 -1 1]);
+        mu_b_unprimed = zeros(3,1);
+        mu_b_unprimed(1) = mu_b_s(n,p,k,l,1);
+        mu_b_unprimed(2) = (mu_b_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_b_s(n,p,k,l,1));
+        mu_b_unprimed(3) = mu_b_s(n,p,k,l,3);
+        assert(abs(mu_b_unprimed'*mu_b_unprimed - 1.0) < normalization_tol);
+        theta_b = atan2(mu_b_unprimed(2),mu_b_unprimed(1)); 
+        quiver(0,0,cos(theta_b),sin(theta_b),0,'-k');        
+        titlestr = ['x =',num2str(xx(n)),',\mbox{   }','$$\frac{2xk}{\pi} =$$',num2str(xx(n)*2*K/pi)];
+        title(titlestr,'Interpreter','latex');
+        %quiver3(0,0,0,mu_s(n,p,k,l,1),mu_s(n,p,k,l,2),mu_s(n,p,k,l,3))
+    end
+    hold off; 
+    pause(); 
+end
 
 count = 0; 
 intensity_snake = zeros(nx_r,ny_r,nxa(1),nxa(2)-1); 
@@ -272,10 +272,13 @@ for n=1:nx_r %should use overlap of solid angle bins
         end
     end
 end
-count %since current algorithm maps 1-1 from cartesian thetas to
+%since current algorithm maps 1-1 from cartesian thetas to
 %snake thetas at each (nx)(ny) cell
+%count
+
 %I have checked that sum(sum(sum(sum(intensity_snake)))) = sum(sum(sum(sum(intensity))))
 %after taking out BCs
+
  for j=1:nxa(1)
             figure(4);
             %Ray intensity plots
@@ -283,10 +286,13 @@ count %since current algorithm maps 1-1 from cartesian thetas to
             hi = subplot(2,3,j); 
             h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity_snake(:,:,j,l));
             %turn off grid lines
-            %set(h, 'EdgeColor', 'none');
-            subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-                num2str(mu(j,l,3),'%.3f'),')'];
-            title(subtitle,'Interpreter','latex');      
+            set(h, 'EdgeColor', 'none');
+            %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+            subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+            title(subtitle);
+            %subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+             %   num2str(mu(j,l,3),'%.3f'),')'];
+            %title(subtitle,'Interpreter','latex');      
             xlabel('x');
             ylabel('y + A sin(kx)');
             colorbar
