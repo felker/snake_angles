@@ -26,14 +26,14 @@ N = 12;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 100;
+nx = 200;
 ny = nx;
 
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
-dt = 0.1;
-nt = 200;
+dt = 0.05;
+nt = 400;
 normalization_tol = 1e-6;
 
 %------------------------ BOUNDARY CONDITIONS  ------------------ %
@@ -192,7 +192,7 @@ v(:,:,1) = 0.0*C;
 [nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
 
 %------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 20; 
+output_interval = 200; 
 num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
@@ -221,7 +221,7 @@ for i=0:nt
     %Inject a ray in the -x +y direction from x_max, y_min (
     %No! inject the ray from x_max, y_middle to avoid corner effects
     for j=1:num_ghost
-        intensity(ie+j,js+ny/2,5,phi_bin) = 1.0;
+        intensity(ie+j,js+ny/2,6,phi_bin) = 1.0;
     end
     
     %Substep #1: Explicitly advance transport term

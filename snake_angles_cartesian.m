@@ -12,10 +12,10 @@ ny = nx;
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
-dt = 0.1;
-nt = 200;
+dt = 0.05;
+nt = 400;
 
-N=6;
+N=12;
 normalization_tol = 1e-6;
 %------------------------ BOUNDARY CONDITIONS  ------------------ %
 %%% van Leer interpolation requires two bc 
@@ -128,7 +128,7 @@ for i=0:nt
     
     %Inject a ray in the -x +y direction from x_max, y_middle
     for j=1:num_ghost
-        intensity(ie+j,js+ny/2,5,phi_bin) = 1.0;
+        intensity(ie+j,js+ny/2,6,phi_bin) = 1.0;
     end
     
     %Substep #1: Explicitly advance transport term
@@ -160,16 +160,16 @@ for i=0:nt
         for j=1:nxa(1)
             %Ray intensity plots
             l=phi_bin; %select phi bin
-            hi = subplot(2,3,j); 
+            hi = subplot(3,4,j); 
             h = pcolor(xx,yy,intensity(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2,j,l)');
             %turn off grid lines
             set(h, 'EdgeColor', 'none');
             %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-            subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-            title(subtitle);
-           % subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-             %   num2str(mu(j,l,3),'%.3f'),')'];
-            %title(subtitle,'Interpreter','latex');      
+            %subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+            %title(subtitle);
+            subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+                num2str(mu(j,l,3),'%.3f'),')'];
+            title(subtitle,'Interpreter','latex');      
             xlabel('x');
             ylabel('y');
             colorbar
@@ -206,45 +206,45 @@ for i=1:nx_r
             l=nxa(2);
             normalization_b = 1./sqrt((1+beta_temp.^2)*mu_b(k,l,1).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2) + mu_b(k,l,2).^2 + mu_b(k,l,3).^2);
             mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b; 
-            assert(snake_norm(squeeze(mu_b_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp)==1)
+            assert(abs(snake_norm(squeeze(mu_b_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp) - 1.0) < normalization_tol )
         end
     end
 end
 %PLOT VARIATION OF ANGLES ALONG X
-l=2; %mu(:,2,3)= 0.3827
+l=phi_bin; 
 %at a particular \phi' 
-h = figure(5);
-clf;
-set(h,'name','Snake propagation angles in Cartesian basis','numbertitle','off');
-for n=nx_r:-1:1
-    p= 1;
-    beta_temp = beta(n);
-    for k=1:nxa(1)
-        %Transform snake rays to cartesian basis, DONT RENORMALIZE
-        mu_unprimed = zeros(3,1);
-        mu_unprimed(1) = mu_s(n,p,k,l,1);
-        mu_unprimed(2) = (mu_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_s(n,p,k,l,1));
-        mu_unprimed(3) = mu_s(n,p,k,l,3);
-        %check normalization of vector in cartesian basis
-        assert(abs(mu_unprimed'*mu_unprimed - 1.0) < normalization_tol);
-        theta_s = atan2(mu_unprimed(2),mu_unprimed(1)); 
-        quiver(0,0,cos(theta_s),sin(theta_s),0,'-r');
-        hold on; 
-        axis([-1 1 -1 1]);
-        mu_b_unprimed = zeros(3,1);
-        mu_b_unprimed(1) = mu_b_s(n,p,k,l,1);
-        mu_b_unprimed(2) = (mu_b_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_b_s(n,p,k,l,1));
-        mu_b_unprimed(3) = mu_b_s(n,p,k,l,3);
-        assert(abs(mu_b_unprimed'*mu_b_unprimed - 1.0) < normalization_tol);
-        theta_b = atan2(mu_b_unprimed(2),mu_b_unprimed(1)); 
-        quiver(0,0,cos(theta_b),sin(theta_b),0,'-k');        
-        titlestr = ['x =',num2str(xx(n)),',\mbox{   }','$$\frac{2xk}{\pi} =$$',num2str(xx(n)*2*K/pi)];
-        title(titlestr,'Interpreter','latex');
-        %quiver3(0,0,0,mu_s(n,p,k,l,1),mu_s(n,p,k,l,2),mu_s(n,p,k,l,3))
-    end
-    hold off; 
-    pause(); 
-end
+% h = figure(5);
+% clf;
+% set(h,'name','Snake propagation angles in Cartesian basis','numbertitle','off');
+% for n=nx_r:-1:1
+%     p= 1;
+%     beta_temp = beta(n);
+%     for k=1:nxa(1)
+%         %Transform snake rays to cartesian basis, DONT RENORMALIZE
+%         mu_unprimed = zeros(3,1);
+%         mu_unprimed(1) = mu_s(n,p,k,l,1);
+%         mu_unprimed(2) = (mu_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_s(n,p,k,l,1));
+%         mu_unprimed(3) = mu_s(n,p,k,l,3);
+%         %check normalization of vector in cartesian basis
+%         assert(abs(mu_unprimed'*mu_unprimed - 1.0) < normalization_tol);
+%         theta_s = atan2(mu_unprimed(2),mu_unprimed(1)); 
+%         quiver(0,0,cos(theta_s),sin(theta_s),0,'-r');
+%         hold on; 
+%         axis([-1 1 -1 1]);
+%         mu_b_unprimed = zeros(3,1);
+%         mu_b_unprimed(1) = mu_b_s(n,p,k,l,1);
+%         mu_b_unprimed(2) = (mu_b_s(n,p,k,l,2) - A*K*cos(K*xx(n))*mu_b_s(n,p,k,l,1));
+%         mu_b_unprimed(3) = mu_b_s(n,p,k,l,3);
+%         assert(abs(mu_b_unprimed'*mu_b_unprimed - 1.0) < normalization_tol);
+%         theta_b = atan2(mu_b_unprimed(2),mu_b_unprimed(1)); 
+%         quiver(0,0,cos(theta_b),sin(theta_b),0,'-k');        
+%         titlestr = ['x =',num2str(xx(n)),',\mbox{   }','$$\frac{2xk}{\pi} =$$',num2str(xx(n)*2*K/pi)];
+%         title(titlestr,'Interpreter','latex');
+%         %quiver3(0,0,0,mu_s(n,p,k,l,1),mu_s(n,p,k,l,2),mu_s(n,p,k,l,3))
+%     end
+%     hold off; 
+%     pause(); 
+% end
 
 count = 0; 
 intensity_snake = zeros(nx_r,ny_r,nxa(1),num_phi_cells); 
@@ -252,7 +252,7 @@ for n=1:nx_r %should use overlap of solid angle bins
     for p=1:ny_r
         for j=1:nxa(1) % even though we only have one nonzero theta bin in current 
             %cartesian problem
-            for l=2:2
+            for l=1:num_phi_cells
                 %Transform from Cartesian basis to Snake Basis
                 mu_prime = zeros(3,1); 
                 mu_prime(1) = mu(j,l,1);
@@ -299,16 +299,16 @@ set(h,'name','Snake transformation of Cartesian solution','numbertitle','off');
  for j=1:nxa(1)
     %Ray intensity plots
     l=phi_bin; %select phi bin
-    hi = subplot(2,3,j); 
+    hi = subplot(3,4,j); 
     h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity_snake(:,:,j,l));
     %turn off grid lines
     set(h, 'EdgeColor', 'none');
     %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-    subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-    title(subtitle);
-    %subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-     %   num2str(mu(j,l,3),'%.3f'),')'];
-    %title(subtitle,'Interpreter','latex');      
+    %subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+    %title(subtitle);
+    subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+        num2str(mu(j,l,3),'%.3f'),')'];
+    title(subtitle,'Interpreter','latex');      
     xlabel('x');
     ylabel('y + A sin(kx)');
     colorbar
