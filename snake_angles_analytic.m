@@ -26,16 +26,26 @@ nx = nx+2*num_ghost;
 ny = ny+2*num_ghost;
 %------------------------ BUILD MESH ------------------ %
 %Radiation Angular Discretization
-[ncells,nxa,mu,mu_b,pw] = uniform_angles3D(N);
+[ncells,nxa,mu,mu_b,pw] = uniform_angles2D(N,pi/2);
 v = zeros(nx,ny,2); 
+phi_bin = 1; %used to select phi level for plotting, injection of IC
 
+%There is a notational confusion whereby nxa(2) includes the two poles.
+%Therefore, there are actually nxa(2)-1 cells in the phi direction
+%whereas in theta, we dont duplicate the last boundary ray (it is implied that 
+% it is cyclic). Maybe want to be consistent in future
+if (nxa(2) -1) >= 2
+    num_phi_cells = nxa(2)-1; 
+else
+    num_phi_cells = 1;
+end
 %Radiation Spatial Discretization
 %Radiation samples are volume averaged quantites
 xx=linspace(0,lx,nx_r)';
 yy=linspace(0,ly,ny_r)';
 
 %Monochromatic specific intensity, boundary conditions at 2,nz-1 
-intensity_analytic = zeros(nx,ny,nxa(1),nxa(2)-1); 
+intensity_analytic = zeros(nx,ny,nxa(1),num_phi_cells); 
 
 %-------------------- SNAKE COORDINATE DETAILS  ----------------- %
 A = 10.0; %amplitude of snake oscillations in y'
@@ -80,8 +90,8 @@ end
 %Inject a ray in the -x +y direction from x_max, y_min
 injection_ix = ie;
 injection_jy = js +ny/2; 
-injection_theta = 6; 
-injection_phi = 6;
+injection_theta = 5; 
+injection_phi = phi_bin;
 for j=1:num_ghost
     intensity_analytic(injection_ix,injection_jy,injection_theta,injection_phi) = 1.0;
 end
@@ -132,10 +142,12 @@ end
 
 %------------------------ NON-TIME SERIES OUTPUT ------------------ %
 
+h = figure(6);
+clf;
+set(h,'name','Analytic solution','numbertitle','off');
 for j=1:nxa(1)
-    figure(3);
     %Ray intensity plots
-    l=6; %select phi bin
+    l=phi_bin; %select phi bin
     hi = subplot(3,4,j); 
     h = pcolor(xx,yy,intensity_analytic(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2,j,l)');
     %turn off grid lines
@@ -156,13 +168,13 @@ end
     
 %Renormalize the angular parameterization for snake as a function of
 %spatial position
-mu_s = zeros(nx_r,ny_r,nxa(1),nxa(2)-1,3);
+mu_s = zeros(nx_r,ny_r,nxa(1),num_phi_cells,3);
 mu_b_s = zeros(nx_r,ny_r,nxa(1),nxa(2),3);
 for i=1:nx_r
     beta_temp = beta(i);
     for j=1:ny_r
         for k=1:nxa(1)
-            for l=1:nxa(2)-1
+            for l=1:num_phi_cells
                 normalization_s = 1./sqrt((1+beta_temp.^2)*mu(k,l,1).^2 - 2*beta_temp*mu(k,l,1)*mu(k,l,2) + mu(k,l,2).^2 + mu(k,l,3).^2);
                 normalization_b = 1./sqrt((1+beta_temp.^2)*mu_b(k,l,1).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2) + mu_b(k,l,2).^2 + mu_b(k,l,3).^2);
                 mu_s(i,j,k,l,:) = mu(k,l,:).*normalization_s; 
@@ -180,7 +192,7 @@ for i=1:nx_r
     end
 end
 
-intensity_analytic_s = zeros(nx_r,ny_r,nxa(1),nxa(2)-1); 
+intensity_analytic_s = zeros(nx_r,ny_r,nxa(1),num_phi_cells); 
 for n=1:nx_r %should use overlap of solid angle bins
     for p=1:ny_r
         for j=1:nxa(1) % even though we only have one nonzero theta bin in current 
@@ -220,10 +232,12 @@ for n=1:nx_r %should use overlap of solid angle bins
     end
 end
 
+h = figure(7);
+clf;
+set(h,'name','Snake transformation of analytic solution','numbertitle','off');
 for j=1:nxa(1)
-    figure(4);
     %Ray intensity plots
-    l=6; %select phi bin
+    l=phi_bin; %select phi bin
     hi = subplot(3,4,j); 
     h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity_analytic_s(:,:,j,l));
     %turn off grid lines

@@ -75,8 +75,9 @@ if PLOT_OUTPUT
     t=0:0.01:2*pi;
     st = sin(t);
     ct = cos(t);
-    figure('Name','Local spherical discretization','NumberTitle','off')
-
+    h = figure(1);
+    clf;
+    set(h,'name','Cartesian basis angular discretization','numbertitle','off');
     hold on;
     for i=1:nxa(2) %at fixed phi. in x-y plane, doesnt include poles
          radius = sqrt(1-cos(phi(i)).^2);

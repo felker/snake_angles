@@ -3,7 +3,16 @@
 %and then transform these rays to snake coordinates to see how the angular
 %mesh evolves. 
 
-%this only tests advection step
+%this only tests advection step, no source terms allowed right now
+
+%Figure numbers:
+%1 = angular discretization
+%2= covariant snake solution
+%3 = cartesian solution
+%4 = transofrmed cartesian solution
+%5 = Cartesian projection of snake propagation angles
+%6 = analytic carteisan solution
+%7 = transformed cartesian solution
 
 %------------------------ PARAMETERS ------------------ %
 clear all;
@@ -12,12 +21,12 @@ clear all;
 % ny = 100;
 % lx = 100.0;
 % ly = 100.0; %corresponding to max y_cartesian, not the actual max y' 
-N = 6; 
+N = 12; 
 
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 40;
+nx = 100;
 ny = nx;
 
 c = 1.0;
@@ -212,7 +221,7 @@ for i=0:nt
     %Inject a ray in the -x +y direction from x_max, y_min (
     %No! inject the ray from x_max, y_middle to avoid corner effects
     for j=1:num_ghost
-        intensity(ie+j,js+ny/2,3,phi_bin) = 1.0;
+        intensity(ie+j,js+ny/2,5,phi_bin) = 1.0;
     end
     
     %Substep #1: Explicitly advance transport term
@@ -282,12 +291,13 @@ for i=0:nt
     %------------------------ NON-TIME SERIES OUTPUT ------------------ %
     if ~mod(i,output_interval)
         time
-        figure('Name','Covariant snake solution','NumberTitle','off')
+        h = figure(2);
+        set(h,'name','Covariant snake solution','numbertitle','off');
         time_title = sprintf('t = %.3f (s)',time); %dont know where to add this above all subplots
         for j=1:nxa(1)
             %Ray intensity plots
             l=phi_bin; %select phi bin
-            hi = subplot(2,3,j); 
+            hi = subplot(3,4,j); 
             %since we pass matrices for the coordinates, do not transpose
             %intensity matrix
             h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity(is:ie,js:je,j,l));

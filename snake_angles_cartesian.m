@@ -29,7 +29,19 @@ nx = nx+2*num_ghost;
 ny = ny+2*num_ghost;
 %------------------------ BUILD MESH ------------------ %
 %Radiation Angular Discretization
-[ncells,nxa,mu,mu_b,pw] = uniform_angles2D(N);
+[ncells,nxa,mu,mu_b,pw] = uniform_angles2D(N,pi/2);
+phi_bin = 1; %used to select phi level for plotting, injection of IC
+
+%There is a notational confusion whereby nxa(2) includes the two poles.
+%Therefore, there are actually nxa(2)-1 cells in the phi direction
+%whereas in theta, we dont duplicate the last boundary ray (it is implied that 
+% it is cyclic). Maybe want to be consistent in future
+if (nxa(2) -1) >= 2
+    num_phi_cells = nxa(2)-1; 
+else
+    num_phi_cells = 1;
+end
+
 v = zeros(nx,ny,2); 
 
 %Radiation Spatial Discretization
@@ -38,7 +50,7 @@ xx=linspace(0,lx,nx_r)';
 yy=linspace(0,ly,ny_r)';
 
 %Monochromatic specific intensity, boundary conditions at 2,nz-1 
-intensity = zeros(nx,ny,nxa(1),nxa(2)-1); 
+intensity = zeros(nx,ny,nxa(1),num_phi_cells); 
 
 %-------------------- SNAKE COORDINATE DETAILS  ----------------- %
 A = 10.0; %amplitude of snake oscillations in y'
@@ -116,14 +128,14 @@ for i=0:nt
     
     %Inject a ray in the -x +y direction from x_max, y_middle
     for j=1:num_ghost
-        intensity(ie+j,js+ny/2,3,2) = 1.0;
+        intensity(ie+j,js+ny/2,5,phi_bin) = 1.0;
     end
     
     %Substep #1: Explicitly advance transport term
-    net_flux = zeros(nx,ny,nxa(1),nxa(2)-1);
+    net_flux = zeros(nx,ny,nxa(1),num_phi_cells);
     %x-flux
     for j=1:nxa(1) %do all nx, ny at once
-        for l=1:nxa(2)-1 %snake edit--- change this discrepancy!
+        for l=1:num_phi_cells; 
         i_flux = upwind_interpolate2D_snake(mu(j,l,1)*(intensity(:,:,j,l)),dt,dx,ones(nx,ny)*C*sign(mu(j,l,1)),is,ie+1,js,je+1,1);
         net_flux(is:ie,js:je,j,l) = dt*C/dx*(i_flux(is+1:ie+1,js:je) - i_flux(is:ie,js:je));
         end
@@ -131,7 +143,7 @@ for i=0:nt
     
     %y-flux
     for j=1:nxa(1) %do all nx, ny at once
-        for l=1:nxa(2)-1
+        for l=1:num_phi_cells; 
         i_flux = upwind_interpolate2D_snake(mu(j,l,2)*(intensity(:,:,j,l)),dt,dy,ones(nx,ny)*C*sign(mu(j,l,2)),is,ie+1,js,je+1,2);
         net_flux(is:ie,js:je,j,l) = net_flux(is:ie,js:je,j,l)+ dt*C/dy*(i_flux(is:ie,js+1:je+1) - i_flux(is:ie,js:je));
         end
@@ -142,11 +154,12 @@ for i=0:nt
     %------------------------ NON-TIME SERIES OUTPUT ------------------ %
     if ~mod(i,output_interval)
         time
-       % static_output(); 
+        h = figure(3);
+        clf;
+        set(h,'name','Cartesian solution','numbertitle','off');
         for j=1:nxa(1)
-            figure(3);
             %Ray intensity plots
-            l=2; %select phi bin
+            l=phi_bin; %select phi bin
             hi = subplot(2,3,j); 
             h = pcolor(xx,yy,intensity(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2,j,l)');
             %turn off grid lines
@@ -162,8 +175,8 @@ for i=0:nt
             colorbar
         end
         %Mean intensity plot
-         %figure(2);
-         %pcolor(xx,yy,rad_energy(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2)')
+        %figure(2);
+        %pcolor(xx,yy,rad_energy(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2)')
          pause(0.1)
     end
 end
@@ -174,13 +187,13 @@ end
 %COPIED AND CUT DOWN FROM SNAKE ANGLES:
 %Renormalize the angular parameterization for snake as a function of
 %spatial position
-mu_s = zeros(nx_r,ny_r,nxa(1),nxa(2)-1,3);
+mu_s = zeros(nx_r,ny_r,nxa(1),num_phi_cells,3);
 mu_b_s = zeros(nx_r,ny_r,nxa(1),nxa(2),3);
 for i=1:nx_r
     beta_temp = beta(i);
     for j=1:ny_r
         for k=1:nxa(1)
-            for l=1:nxa(2)-1
+            for l=1:num_phi_cells
                 normalization_s = 1./sqrt((1+beta_temp.^2)*mu(k,l,1).^2 - 2*beta_temp*mu(k,l,1)*mu(k,l,2) + mu(k,l,2).^2 + mu(k,l,3).^2);
                 normalization_b = 1./sqrt((1+beta_temp.^2)*mu_b(k,l,1).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2) + mu_b(k,l,2).^2 + mu_b(k,l,3).^2);
                 mu_s(i,j,k,l,:) = mu(k,l,:).*normalization_s; 
@@ -200,7 +213,9 @@ end
 %PLOT VARIATION OF ANGLES ALONG X
 l=2; %mu(:,2,3)= 0.3827
 %at a particular \phi' 
-figure(10);
+h = figure(5);
+clf;
+set(h,'name','Snake propagation angles in Cartesian basis','numbertitle','off');
 for n=nx_r:-1:1
     p= 1;
     beta_temp = beta(n);
@@ -232,7 +247,7 @@ for n=nx_r:-1:1
 end
 
 count = 0; 
-intensity_snake = zeros(nx_r,ny_r,nxa(1),nxa(2)-1); 
+intensity_snake = zeros(nx_r,ny_r,nxa(1),num_phi_cells); 
 for n=1:nx_r %should use overlap of solid angle bins
     for p=1:ny_r
         for j=1:nxa(1) % even though we only have one nonzero theta bin in current 
@@ -278,23 +293,24 @@ end
 
 %I have checked that sum(sum(sum(sum(intensity_snake)))) = sum(sum(sum(sum(intensity))))
 %after taking out BCs
-
+h = figure(4);
+clf;
+set(h,'name','Snake transformation of Cartesian solution','numbertitle','off');
  for j=1:nxa(1)
-            figure(4);
-            %Ray intensity plots
-            l=2; %select phi bin
-            hi = subplot(2,3,j); 
-            h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity_snake(:,:,j,l));
-            %turn off grid lines
-            set(h, 'EdgeColor', 'none');
-            %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-            subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-            title(subtitle);
-            %subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-             %   num2str(mu(j,l,3),'%.3f'),')'];
-            %title(subtitle,'Interpreter','latex');      
-            xlabel('x');
-            ylabel('y + A sin(kx)');
-            colorbar
+    %Ray intensity plots
+    l=phi_bin; %select phi bin
+    hi = subplot(2,3,j); 
+    h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity_snake(:,:,j,l));
+    %turn off grid lines
+    set(h, 'EdgeColor', 'none');
+    %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+    subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+    title(subtitle);
+    %subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+     %   num2str(mu(j,l,3),'%.3f'),')'];
+    %title(subtitle,'Interpreter','latex');      
+    xlabel('x');
+    ylabel('y + A sin(kx)');
+    colorbar
  end
  
