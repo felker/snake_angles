@@ -5,14 +5,12 @@ clear all;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 50;
+nx = 40;
 ny = nx;
 
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
-dt = 0.1;
-nt = 200;
 
 N=12;
 normalization_tol = 1e-6;
@@ -28,7 +26,7 @@ nx = nx+2*num_ghost;
 ny = ny+2*num_ghost;
 %------------------------ BUILD MESH ------------------ %
 %Radiation Angular Discretization
-[ncells,nxa,mu,mu_b,pw] = uniform_angles2D(N);
+[ncells,nxa,mu,mu_b,pw] = uniform_angles3D(N);
 v = zeros(nx,ny,2); 
 
 %Radiation Spatial Discretization
@@ -66,29 +64,6 @@ rho_s = zeros(nx,ny);
 %Fluid density, temperature
 density = ones(nx,ny);
 temp = ones(nx,ny); 
-
-v(:,:,1) = 0.0*C; 
-
-%------------------------ PRE-TIMESTEPPING SETUP ------------------ %
-%Calculate Radiation CFL numbers
-%SNAKE EDIT: THIS NEEDS TO BE CALCULATED AT EACH POINT!
-
-% cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
-% %set dt to have max cfl of 0.4
-% dt = dt*1.0/max(cfl_mu);
-% %Recalculate radiation CFL
-% cfl_mu = C*dt*abs(mu)*[1/dx 1/dy]';
-% assert(min(abs(cfl_mu) <= ones(na,1))); 
-
-%------------------------ VELOCITY TERMS ------------------------------ %
-[nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
-
-%------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 100; 
-num_output = 8; %number of data to output
-num_pts = nt/output_interval; 
-time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
-y_out = zeros(num_pts+1,num_output);
 
 %------------------------ FORMAL SOLUTION ------------------------------ %
 
