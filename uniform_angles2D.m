@@ -27,7 +27,7 @@ function [ncells,nxa,mu,mu_b,pw] = uniform_angles2D(N,phi)
 
 % Keep data structures same as 3D case so that 2D problems are a subset
 
-PLOT_OUTPUT = 1;
+PLOT_OUTPUT = 0;
 
 %DISCRETIZE THE PARAMETERS: THETA, PHI
 %Do the entire 2-sphere
@@ -75,7 +75,6 @@ if PLOT_OUTPUT
     t=0:0.01:2*pi;
     st = sin(t);
     ct = cos(t);
-    figure(1);
     figure('Name','Local spherical discretization','NumberTitle','off')
 
     hold on;

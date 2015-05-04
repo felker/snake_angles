@@ -50,15 +50,29 @@ beta = A*K*cos(K*xx);
 alpha = sqrt(1 + beta.^2);
 
 %------------------------ BUILD ANGULAR MESH ------------------ %
-%Radiation Angular Discretization
+%Basic uniform Cartesian basis angular discretization
 %This produces a local discretization when the metric is in the canonical
 %form
-[ncells,nxa,mu,mu_b,pw] = uniform_angles2D(N);
+[ncells,nxa,mu,mu_b,pw] = uniform_angles2D(N,pi/2);
+phi_bin = 1; %used to select phi level for plotting, injection of IC
+
+%There is a notational confusion whereby nxa(2) includes the two poles.
+%Therefore, there are actually nxa(2)-1 cells in the phi direction
+%whereas in theta, we dont duplicate the last boundary ray (it is implied that 
+% it is cyclic). Maybe want to be consistent in future
+if (nxa(2) -1) >= 2
+    num_phi_cells = nxa(2)-1; 
+else
+    num_phi_cells = 1;
+end
 %Renormalize the angular parameterization for snake as a function of
 %spatial position
 % \hat{k}^i' (x^\mu) = CW^i
-%nx_r or nx?
-mu_s = zeros(nx,ny,nxa(1),nxa(2)-1,3);
+%Another angular inconcsistency is that these arrays for propagation
+%vectors do not extend to the boundary ghost cells. So the spatial
+%advection loops operate over all cells, ghost and real, and angular
+%advection loops are only over real spatial cells. 
+mu_s = zeros(nx,ny,nxa(1),num_phi_cells,3);
 mu_b_s = zeros(nx,ny,nxa(1),nxa(2),3);
 for i=1:nx
     if i >= is && i<=ie %deal with ghost cells for which beta is undefined
@@ -67,7 +81,6 @@ for i=1:nx
         beta_temp = beta(1); 
     elseif i > ie
         beta_temp = beta(nx_r); 
-       % beta_temp = 1.0; %this might screw up the van leer part....
         %Yes, this will cause problems in nonzero dirichlet bcs and
         %periodic bcs. but if we are setting absorbing boundaries, then it
         %shouldnt matter. 
@@ -77,7 +90,7 @@ for i=1:nx
     end
     for j=1:ny
         for k=1:nxa(1)
-            for l=1:nxa(2)-1
+            for l=1:num_phi_cells;
                 normalization_s = 1./sqrt(1+(beta_temp*mu(k,l,1)).^2 - 2*beta_temp*mu(k,l,1)*mu(k,l,2));
                 normalization_b = 1./sqrt(1+(beta_temp*mu_b(k,l,1)).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2));
                 mu_s(i,j,k,l,:) = mu(k,l,:).*normalization_s; 
@@ -89,14 +102,45 @@ for i=1:nx
             l=nxa(2);
             normalization_b = 1./sqrt(1+(beta_temp*mu_b(k,l,1)).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2));
             mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b; 
-            assert(snake_norm(squeeze(mu_b_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp)==1)
+            assert(snake_norm(squeeze(mu_b_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp)- 1.0 < normalization_tol);
         end
     end
 end
+%--------------------- CHARACTERIZE GEODESIC CURVATURE ------------------ %
+% C^i and dx^A/dk can be precomputed since they do not depend on coord time
+% in this coordinate system
+
+% Compute C^2: varies from -|C2|, |C2| due to sin varying over entire range 
+% on this mesh. 
+ C2 = zeros(nx_r,ny_r,nxa(1),num_phi_cells);
+ for n=1:nx_r 
+     for p=1:ny_r
+         for j=1:nxa(1)
+             for l=1:num_phi_cells
+                %spatial dependence: beta(x), \hat{k}^1'(x) from normalization
+                C2(n,p,j,l) = A*K^2*sin(K*xx(n))*(1+2*beta(n).^2)*mu_s(n+num_ghost,p+num_ghost,j,l,1).^2;              
+             end
+         end
+     end
+ end
+ %Compute parameterization derivative
+ dxadk = zeros(nx_r,ny_r,nxa(1),num_phi_cells); %this shouldnt depend on \hat{k}^i' = mu_s!!
+ for n=1:nx_r 
+     for p=1:ny_r
+         for j=1:nxa(1)
+             for l=1:num_phi_cells
+                 temp = 1+(beta(n)*mu(j,l,1)).^2 - 2*beta(n)*...
+                     mu(j,l,1)*mu(j,l,2);
+                 dxadk(n,p,j,l) = beta(n)*mu(j,l,1).^2./(temp)^(3/2)*sqrt(1- ...
+                    mu(j,l,1).^2./(temp));
+             end
+         end
+     end
+ end
 
 %------------------------ INTENSITY AND FLUID VELOCITY ------------------ %
 %Monochromatic specific intensity, boundary conditions at 2,nz-1 
-intensity = zeros(nx,ny,nxa(1),nxa(2)-1); 
+intensity = zeros(nx,ny,nxa(1),num_phi_cells); 
 v = zeros(nx,ny,2); 
 
 %--------------- JIANG14 variables, dimensionless constants --------------%
@@ -154,9 +198,6 @@ for i=0:nt
 
     if ~mod(i,output_interval)
     end
-
-    %Inject a single ray from the  mu=(1/3,1/3) from center
-    %intensity(nx/2,ny/2,1,2) = 1.0; 
     
     %Boundary conditions
     for j=1:num_ghost
@@ -171,14 +212,14 @@ for i=0:nt
     %Inject a ray in the -x +y direction from x_max, y_min (
     %No! inject the ray from x_max, y_middle to avoid corner effects
     for j=1:num_ghost
-        intensity(ie+j,js+ny/2,3,2) = 1.0;
+        intensity(ie+j,js+ny/2,3,phi_bin) = 1.0;
     end
     
     %Substep #1: Explicitly advance transport term
-    net_flux = zeros(nx,ny,nxa(1),nxa(2)-1);
+    net_flux = zeros(nx,ny,nxa(1),num_phi_cells);
     %x-flux
     for j=1:nxa(1) %do all nx, ny at once
-        for l=1:nxa(2)-1 %snake edit: with new normalized \hat{k}, how will it work?
+        for l=1:num_phi_cells 
             %cannot pull mu out from partial, since it changes with x
             %position
         %i_flux = upwind_interpolate2D_snake(mu(j,l,1)*(intensity(:,:,j,l)),dt,dx,ones(nx,ny)*C*sign(mu(j,l,1)),is,ie+1,js,je+1,1);
@@ -189,7 +230,7 @@ for i=0:nt
     
     %y-flux
     for j=1:nxa(1) %do all nx, ny at once
-        for l=1:nxa(2)-1
+        for l=1:num_phi_cells
         %i_flux = upwind_interpolate2D_snake(mu(j,l,2)*(intensity(:,:,j,l)),dt,dy,ones(nx,ny)*C*sign(mu(j,l,2)),is,ie+1,js,je+1,2);
         i_flux = upwind_interpolate2D_snake(mu_s(:,:,j,l,2).*(intensity(:,:,j,l)),dt,dy,C.*sign(mu_s(:,:,j,l,2)),is,ie+1,js,je+1,2);
         net_flux(is:ie,js:je,j,l) = net_flux(is:ie,js:je,j,l)+ dt*C/dy*(i_flux(is:ie,js+1:je+1) - i_flux(is:ie,js:je));
@@ -197,47 +238,16 @@ for i=0:nt
     end    %end of ray trace loop, y-direction
     
     %Substep #1.1: Compute solid angular fluxes
-    %the coefficients C^i can depend C^i(x,y,z,k^1,k^2,k^3), so the outer
-    %loop should be over solid angle, and the inner loops will be over
-    %spatial cells... actually the order shouldnt matter
         
-    %Compute C^2
-    %for this metric/coords, this can be precomputed. varies from -|C2| to
-    %|C2| due to sin varying over entire range on this mesh
-     C2 = zeros(nx_r,ny_r,nxa(1),nxa(2)-1);
-     for n=1:nx_r 
-         for p=1:ny_r
-             for j=1:nxa(1)
-                 for l=1:nxa(2)-1
-                    %spatial dependence: beta(x), \hat{k}^1'(x) from normalization
-                    C2(n,p,j,l) = A*K^2*sin(K*xx(n))*(1+2*beta(n).^2)*mu_s(n+num_ghost,p+num_ghost,j,l,1).^2;              
-                 end
-             end
-         end
-     end
-     %Compute parameterization speed
-     dxadk = zeros(nx_r,ny_r,nxa(1),nxa(2)-1); %this shouldnt depend on \hat{k}^i' = mu_s!!
-     for n=1:nx_r 
-         for p=1:ny_r
-             for j=1:nxa(1)
-                 for l=1:nxa(2)-1
-                     temp = 1+(beta(n)*mu(j,l,1)).^2 - 2*beta(n)*...
-                         mu(j,l,1)*mu(j,l,2);
-                     dxadk(n,p,j,l) = beta(n)*mu(j,l,1).^2./(temp)^(3/2)*sqrt(1- ...
-                        mu(j,l,1).^2./(temp));
-                 end
-             end
-         end
-     end
      %Manually hardcode the donor cell method since we only have vtheta
-     angular_flux = zeros(nx_r,ny_r,nxa(1),nxa(2)-1);
-     i_flux = zeros(nx_r,ny_r,nxa(1),nxa(2)-1,2);
+     angular_flux = zeros(nx_r,ny_r,nxa(1),num_phi_cells);
+     i_flux = zeros(nx_r,ny_r,nxa(1),num_phi_cells,2);
      dtheta = 2*pi./(nxa(1)); 
      dphi = pi./(nxa(2));
      for n=1:nx_r
         for p=1:ny_r
             for j=1:nxa(1) %edit out for easy periodic circular shifts
-                for l=1:nxa(2)-1
+                for l=1:num_phi_cells
                     v1 = C2(n,p,j,l).*dxadk(n,p,j,l);
                     %theta flux
                     if v1 > 0 %counterclockwise speed
@@ -251,10 +261,11 @@ for i=0:nt
                     end
                 end
                 %phi flux
+                %if nxa(2) > 1
                 %handle both poles
             end %end of angular loops
             for j=1:nxa(1)
-                for l=1:nxa(2)-1
+                for l=1:num_phi_cells
                     v1 = C2(n,p,j,l).*dxadk(n,p,j,l);
                     if j+1 == nxa(1)+1
                         angular_flux(n,p,j,l) = dt*v1/dtheta.*(i_flux(n,p,1,l,1) - i_flux(n,p,j,l,1));                   
@@ -265,23 +276,17 @@ for i=0:nt
                         -net_flux(num_ghost+n,num_ghost+p,j,l) -angular_flux(n,p,j,l); 
                 end
             end
-            %angular_flux = angular_flux + dt*v2/dphi*(circshift(i_flux(:,:,2),[0,-1]) - i_flux(:,:,2));
-
         end
-     end %end of spatial loops
-       
-   
-     
+    end %end of spatial loops
+            
     %------------------------ NON-TIME SERIES OUTPUT ------------------ %
     if ~mod(i,output_interval)
         time
-       % static_output(); 
-        figure(2);            
-        time_title = sprintf('t = %.3f (s)',time);
-        %dont know where to add this above
+        figure('Name','Covariant snake solution','NumberTitle','off')
+        time_title = sprintf('t = %.3f (s)',time); %dont know where to add this above all subplots
         for j=1:nxa(1)
             %Ray intensity plots
-            l=2; %select phi bin
+            l=phi_bin; %select phi bin
             hi = subplot(2,3,j); 
             %since we pass matrices for the coordinates, do not transpose
             %intensity matrix
@@ -289,7 +294,7 @@ for i=0:nt
             %turn off grid lines
             set(h, 'EdgeColor', 'none');
             
-            %this string formatter doesnt work for some reason
+            %this string formatter doesnt work on laptop for some reason
             %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
             subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
             title(subtitle);
@@ -301,8 +306,8 @@ for i=0:nt
             colorbar
         end
         %Mean intensity plot
-         %figure(3);
-         %pcolor(xx,yy,rad_energy(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2)')
-         pause(0.1)
+        %figure(3);
+        %pcolor(xx,yy,rad_energy(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2)')
+        pause(0.1)
     end
 end
