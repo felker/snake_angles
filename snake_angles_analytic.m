@@ -5,7 +5,7 @@ clear all;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 40;
+nx = 200;
 ny = nx;
 
 c = 1.0;
@@ -90,7 +90,7 @@ end
 %Inject a ray in the -x +y direction from x_max, y_min
 injection_ix = ie;
 injection_jy = js +ny/2; 
-injection_theta = 5; 
+injection_theta = 6; 
 injection_phi = phi_bin;
 for j=1:num_ghost
     intensity_analytic(injection_ix,injection_jy,injection_theta,injection_phi) = 1.0;
@@ -197,7 +197,7 @@ for n=1:nx_r %should use overlap of solid angle bins
     for p=1:ny_r
         for j=1:nxa(1) % even though we only have one nonzero theta bin in current 
             %cartesian problem
-            for l=6:6
+            for l=num_phi_cells
                 %Transform from Cartesian basis to Snake Basis
                 mu_prime = zeros(3,1); 
                 mu_prime(1) = mu(j,l,1);
