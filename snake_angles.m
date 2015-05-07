@@ -26,7 +26,7 @@ N = 12;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 200;
+nx = 50;
 ny = nx;
 
 c = 1.0;
@@ -192,7 +192,7 @@ v(:,:,1) = 0.0*C;
 [nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
 
 %------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 200; 
+output_interval = 20; 
 num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
@@ -218,11 +218,17 @@ for i=0:nt
         %SNAKE periodic boundary conditions TBD
     end
     
-    %Inject a ray in the -x +y direction from x_max, y_min (
-    %No! inject the ray from x_max, y_middle to avoid corner effects
+    %Inject a ray in the -x +y direction from x_max, y_min
+    injection_ix = ie;
+    injection_jy = num_ghost+ny_r/2; % center of beam
+    %width of beam, 1/5 of domain height
+    beam_width = ny_r/5;
+    injection_theta = 6; 
+    injection_phi = phi_bin;
     for j=1:num_ghost
-        intensity(ie+j,js+ny/2,6,phi_bin) = 1.0;
-    end
+        intensity(injection_ix+j,(injection_jy-beam_width/2+1):(injection_jy+beam_width/2)...
+            ,injection_theta,injection_phi) = 1.0;
+    end %addition of a thick beam has created imaginary intensity values in other theta bins
     
     %Substep #1: Explicitly advance transport term
     net_flux = zeros(nx,ny,nxa(1),num_phi_cells);
@@ -231,7 +237,6 @@ for i=0:nt
         for l=1:num_phi_cells 
             %cannot pull mu out from partial, since it changes with x
             %position
-        %i_flux = upwind_interpolate2D_snake(mu(j,l,1)*(intensity(:,:,j,l)),dt,dx,ones(nx,ny)*C*sign(mu(j,l,1)),is,ie+1,js,je+1,1);
         i_flux = upwind_interpolate2D_snake(mu_s(:,:,j,l,1).*(intensity(:,:,j,l)),dt,dx,C.*sign(mu_s(:,:,j,l,1)),is,ie+1,js,je+1,1);
         net_flux(is:ie,js:je,j,l) = dt*C/dx*(i_flux(is+1:ie+1,js:je) - i_flux(is:ie,js:je));
         end
@@ -240,7 +245,6 @@ for i=0:nt
     %y-flux
     for j=1:nxa(1) %do all nx, ny at once
         for l=1:num_phi_cells
-        %i_flux = upwind_interpolate2D_snake(mu(j,l,2)*(intensity(:,:,j,l)),dt,dy,ones(nx,ny)*C*sign(mu(j,l,2)),is,ie+1,js,je+1,2);
         i_flux = upwind_interpolate2D_snake(mu_s(:,:,j,l,2).*(intensity(:,:,j,l)),dt,dy,C.*sign(mu_s(:,:,j,l,2)),is,ie+1,js,je+1,2);
         net_flux(is:ie,js:je,j,l) = net_flux(is:ie,js:je,j,l)+ dt*C/dy*(i_flux(is:ie,js+1:je+1) - i_flux(is:ie,js:je));
         end

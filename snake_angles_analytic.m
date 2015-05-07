@@ -5,7 +5,7 @@ clear all;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 200;
+nx = 20; %ought to be divisible by 10
 ny = nx;
 
 c = 1.0;
@@ -89,55 +89,60 @@ end
     
 %Inject a ray in the -x +y direction from x_max, y_min
 injection_ix = ie;
-injection_jy = js +ny/2; 
+injection_jy = num_ghost+ny_r/2; % center of beam
+%width of beam, 1/5 of domain height
+beam_width = ny_r/5;
 injection_theta = 6; 
 injection_phi = phi_bin;
 for j=1:num_ghost
-    intensity_analytic(injection_ix,injection_jy,injection_theta,injection_phi) = 1.0;
+    intensity_analytic(injection_ix+j,(injection_jy-beam_width/2+1):(injection_jy+beam_width/2)...
+        ,injection_theta,injection_phi) = 1.0;
 end
 %technically long characteristics....
-i = injection_ix-num_ghost;
-j = injection_jy-num_ghost;
-%Fill all cells in the path of the characteristic
-x_pos = xx(i);
-y_pos = yy(j);
-x_dir = sign(mu(injection_theta,injection_phi,1)); %moving back or forward in x
-y_dir = sign(mu(injection_theta,injection_phi,2));
-slope_xy = mu(injection_theta,injection_phi,2)/mu(injection_theta,injection_phi,1); 
-neighbor_x = i + x_dir;
-neighbor_y = j + y_dir;
+for k=1:beam_width
+    i = injection_ix -num_ghost;
+    j = injection_jy-beam_width/2+k - num_ghost;
+    %Fill all cells in the path of the characteristic
+    x_pos = xx(i);
+    y_pos = yy(j);
+    x_dir = sign(mu(injection_theta,injection_phi,1)); %moving back or forward in x
+    y_dir = sign(mu(injection_theta,injection_phi,2));
+    slope_xy = mu(injection_theta,injection_phi,2)/mu(injection_theta,injection_phi,1); 
+    neighbor_x = i + x_dir;
+    neighbor_y = j + y_dir;
 
-while (neighbor_x >= 1 && neighbor_y >= 1 && neighbor_x <= nx_r && neighbor_y <= ny_r) 
-    %at one of four boundaries of a cell
-    if x_dir > 0
-        Dx = (xx(neighbor_x) - dx/2 - x_pos); 
-    else
-        Dx = (x_pos - xx(neighbor_x) - dx/2); 
+    while (neighbor_x >= 1 && neighbor_y >= 1 && neighbor_x <= nx_r && neighbor_y <= ny_r) 
+        %at one of four boundaries of a cell
+        if x_dir > 0
+            Dx = (xx(neighbor_x) - dx/2 - x_pos); 
+        else
+            Dx = (x_pos - xx(neighbor_x) - dx/2); 
+        end
+
+        if y_dir > 0
+            Dy = (yy(neighbor_y) - dy/2 - y_pos);         
+        else
+            Dy = (y_pos - dy/2 - yy(neighbor_y));                
+        end
+        %see if characteristic hits x or y boundary first
+        %x first
+        if Dx/abs(mu(injection_theta,injection_phi,1)) <  ...
+                Dy/abs(mu(injection_theta,injection_phi,2))
+            i = neighbor_x; 
+            neighbor_x = neighbor_x + x_dir;
+            x_pos = xx(i);
+            y_pos = y_pos + y_dir*abs(slope_xy)*Dx;
+            intensity_analytic(i+num_ghost,j+num_ghost,injection_theta,injection_phi) = 1.0;
+        else
+            j = neighbor_y; 
+            neighbor_y = neighbor_y + y_dir;
+            y_pos = yy(j);
+            x_pos = x_pos + x_dir*abs(Dy/slope_xy);
+            intensity_analytic(i+num_ghost,j+num_ghost,injection_theta,injection_phi) = 1.0;
+        end
+        %CANNOT HANDLE CORNER ADVECTION
+
     end
-    
-    if y_dir > 0
-        Dy = (yy(neighbor_y) - dy/2 - y_pos);         
-    else
-        Dy = (y_pos - dy/2 - yy(neighbor_y));                
-    end
-    %see if characteristic hits x or y boundary first
-    %x first
-    if Dx/abs(mu(injection_theta,injection_phi,1)) <  ...
-            Dy/abs(mu(injection_theta,injection_phi,2))
-        i = neighbor_x; 
-        neighbor_x = neighbor_x + x_dir;
-        x_pos = xx(i);
-        y_pos = y_pos + y_dir*abs(slope_xy)*Dx;
-        intensity_analytic(i,j,injection_theta,injection_phi) = 1.0;
-    else
-        j = neighbor_y; 
-        neighbor_y = neighbor_y + y_dir;
-        y_pos = yy(j);
-        x_pos = x_pos + x_dir*abs(Dy/slope_xy);
-        intensity_analytic(i,j,injection_theta,injection_phi) = 1.0;
-    end
-    %CANNOT HANDLE CORNER ADVECTION
-    
 end
 
 %------------------------ NON-TIME SERIES OUTPUT ------------------ %

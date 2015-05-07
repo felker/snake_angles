@@ -1,0 +1,4 @@
+Time steppers run for 2 lightcrossing times of grid
+
+dt = 0.1 for nx=20,50
+dt = 0.01 for nx=100,200
