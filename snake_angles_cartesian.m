@@ -6,14 +6,14 @@ clear all;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 100;
+nx = 50;
 ny = nx;
 
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
-dt = 0.05;
-nt = 400;
+dt = 0.1;
+nt = 200;
 
 N=12;
 normalization_tol = 1e-6;
@@ -127,10 +127,21 @@ for i=0:nt
     end
     
     %Inject a ray in the -x +y direction from x_max, y_middle
+%     for j=1:num_ghost
+%         intensity(ie+j,js+ny/2,6,phi_bin) = 1.0;
+%     end
+    %Inject a ray in the -x +y direction from x_max, y_min
+    injection_ix = ie;
+    injection_jy = num_ghost+ny_r/2; % center of beam
+    %width of beam, 1/5 of domain height
+    beam_width = ny_r/5;
+    injection_theta = 6; 
+    injection_phi = phi_bin;
     for j=1:num_ghost
-        intensity(ie+j,js+ny/2,6,phi_bin) = 1.0;
-    end
-    
+        intensity(injection_ix+j,(injection_jy-beam_width/2+1):(injection_jy+beam_width/2)...
+            ,injection_theta,injection_phi) = 1.0;
+    end 
+
     %Substep #1: Explicitly advance transport term
     net_flux = zeros(nx,ny,nxa(1),num_phi_cells);
     %x-flux

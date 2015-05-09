@@ -26,14 +26,14 @@ N = 12;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 50;
+nx = 40;
 ny = nx;
 
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
-dt = 0.05;
-nt = 400;
+dt = 0.1;
+nt = 200;
 normalization_tol = 1e-6;
 
 %------------------------ BOUNDARY CONDITIONS  ------------------ %
@@ -218,7 +218,7 @@ for i=0:nt
         %SNAKE periodic boundary conditions TBD
     end
     
-    %Inject a ray in the -x +y direction from x_max, y_min
+    %Inject thick ray from x_max, y_middle to avoid corner effects
     injection_ix = ie;
     injection_jy = num_ghost+ny_r/2; % center of beam
     %width of beam, 1/5 of domain height
@@ -228,7 +228,7 @@ for i=0:nt
     for j=1:num_ghost
         intensity(injection_ix+j,(injection_jy-beam_width/2+1):(injection_jy+beam_width/2)...
             ,injection_theta,injection_phi) = 1.0;
-    end %addition of a thick beam has created imaginary intensity values in other theta bins
+    end 
     
     %Substep #1: Explicitly advance transport term
     net_flux = zeros(nx,ny,nxa(1),num_phi_cells);
@@ -237,6 +237,7 @@ for i=0:nt
         for l=1:num_phi_cells 
             %cannot pull mu out from partial, since it changes with x
             %position
+        %i_flux = upwind_interpolate2D_snake(mu(j,l,1)*(intensity(:,:,j,l)),dt,dx,ones(nx,ny)*C*sign(mu(j,l,1)),is,ie+1,js,je+1,1);
         i_flux = upwind_interpolate2D_snake(mu_s(:,:,j,l,1).*(intensity(:,:,j,l)),dt,dx,C.*sign(mu_s(:,:,j,l,1)),is,ie+1,js,je+1,1);
         net_flux(is:ie,js:je,j,l) = dt*C/dx*(i_flux(is+1:ie+1,js:je) - i_flux(is:ie,js:je));
         end
@@ -245,6 +246,7 @@ for i=0:nt
     %y-flux
     for j=1:nxa(1) %do all nx, ny at once
         for l=1:num_phi_cells
+        %i_flux = upwind_interpolate2D_snake(mu(j,l,2)*(intensity(:,:,j,l)),dt,dy,ones(nx,ny)*C*sign(mu(j,l,2)),is,ie+1,js,je+1,2);
         i_flux = upwind_interpolate2D_snake(mu_s(:,:,j,l,2).*(intensity(:,:,j,l)),dt,dy,C.*sign(mu_s(:,:,j,l,2)),is,ie+1,js,je+1,2);
         net_flux(is:ie,js:je,j,l) = net_flux(is:ie,js:je,j,l)+ dt*C/dy*(i_flux(is:ie,js+1:je+1) - i_flux(is:ie,js:je));
         end
