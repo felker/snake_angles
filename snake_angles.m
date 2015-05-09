@@ -33,7 +33,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.1;
-nt = 200;
+nt = 60;
 normalization_tol = 1e-6;
 
 %------------------------ BOUNDARY CONDITIONS  ------------------ %
@@ -122,22 +122,14 @@ end
 % Compute C^2: varies from -|C2|, |C2| due to sin varying over entire range 
 % on this mesh. 
  C2 = zeros(nx_r,ny_r,nxa(1),num_phi_cells);
- for n=1:nx_r 
+ %Compute parameterization derivative
+ dxadk = zeros(nx_r,ny_r,nxa(1),num_phi_cells); %this shouldnt depend on \hat{k}^i' = mu_s
+ for n=1:nx_r  
      for p=1:ny_r
          for j=1:nxa(1)
              for l=1:num_phi_cells
                 %spatial dependence: beta(x), \hat{k}^1'(x) from normalization
                 C2(n,p,j,l) = A*K^2*sin(K*xx(n))*(1+2*beta(n).^2)*mu_s(n+num_ghost,p+num_ghost,j,l,1).^2;              
-             end
-         end
-     end
- end
- %Compute parameterization derivative
- dxadk = zeros(nx_r,ny_r,nxa(1),num_phi_cells); %this shouldnt depend on \hat{k}^i' = mu_s!!
- for n=1:nx_r 
-     for p=1:ny_r
-         for j=1:nxa(1)
-             for l=1:num_phi_cells
                  temp = 1+(beta(n)*mu(j,l,1)).^2 - 2*beta(n)*...
                      mu(j,l,1)*mu(j,l,2);
                  dxadk(n,p,j,l) = beta(n)*mu(j,l,1).^2./(temp)^(3/2)*sqrt(1- ...
@@ -146,6 +138,8 @@ end
          end
      end
  end
+%Angular flux speed
+vtheta = C2.*dxadk;
 
 %------------------------ INTENSITY AND FLUID VELOCITY ------------------ %
 %Monochromatic specific intensity, boundary conditions at 2,nz-1 
@@ -192,7 +186,7 @@ v(:,:,1) = 0.0*C;
 [nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
 
 %------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 20; 
+output_interval = 5; 
 num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
@@ -211,10 +205,10 @@ for i=0:nt
     %Boundary conditions
     for j=1:num_ghost
         %implement fixed dirichlet absorbing boundary conditions
-        intensity(:,js-j,:) = 0.0;
-        intensity(:,je+j,:) = 0.0;
-        intensity(is-j,:,:) = 0.0;
-        intensity(ie+j,:,:) = 0.0;
+        intensity(:,js-j,:,:) = 0.0;
+        intensity(:,je+j,:,:) = 0.0;
+        intensity(is-j,:,:,:) = 0.0;
+        intensity(ie+j,:,:,:) = 0.0;
         %SNAKE periodic boundary conditions TBD
     end
     
@@ -253,6 +247,7 @@ for i=0:nt
     end    %end of ray trace loop, y-direction
     
     %Substep #1.1: Compute solid angular fluxes
+        %SUM IS NOT ZERO IN NXA(1) DIMNESION!
         
      %Manually hardcode the donor cell method since we only have vtheta
      angular_flux = zeros(nx_r,ny_r,nxa(1),num_phi_cells);
@@ -263,15 +258,15 @@ for i=0:nt
         for p=1:ny_r
             for j=1:nxa(1) %edit out for easy periodic circular shifts
                 for l=1:num_phi_cells
-                    v1 = C2(n,p,j,l).*dxadk(n,p,j,l);
                     %theta flux
-                    if v1 > 0 %counterclockwise speed
+                    if vtheta(n,p,j,l) > 0 %counterclockwise speed
+                        %maybe this shouldnt be periodic in \theta
                         if j-1 == 0
                           i_flux(n,p,j,l,1) = intensity(n+num_ghost,p+num_ghost,nxa(1),l,1); %flux entering "left" boundary                          
                         else
                           i_flux(n,p,j,l,1) = intensity(n+num_ghost,p+num_ghost,j-1,l,1); %flux entering "left" boundary                          
                         end
-                    elseif v1 < 0 %clockwise 
+                    elseif vtheta(n,p,j,l) < 0 %clockwise 
                         i_flux(n,p,j,l,1) = intensity(n+num_ghost,p+num_ghost,j,l,1);  %flux leaving left boundary          
                     end
                 end
@@ -281,16 +276,16 @@ for i=0:nt
             end %end of angular loops
             for j=1:nxa(1)
                 for l=1:num_phi_cells
-                    v1 = C2(n,p,j,l).*dxadk(n,p,j,l);
-                    if j+1 == nxa(1)+1
-                        angular_flux(n,p,j,l) = dt*v1/dtheta.*(i_flux(n,p,1,l,1) - i_flux(n,p,j,l,1));                   
+                    if j == nxa(1)
+                        angular_flux(n,p,j,l) = dt*vtheta(n,p,j,l)/dtheta.*(i_flux(n,p,1,l,1) - i_flux(n,p,j,l,1));                   
                     else
-                        angular_flux(n,p,j,l) = dt*v1/dtheta.*(i_flux(n,p,j+1,l,1) - i_flux(n,p,j,l,1));
+                        angular_flux(n,p,j,l) = dt*vtheta(n,p,j,l)/dtheta.*(i_flux(n,p,j+1,l,1) - i_flux(n,p,j,l,1));
                     end
                     intensity(num_ghost+n,num_ghost+p,j,l) = intensity(num_ghost+n,num_ghost+p,j,l) ...
                         -net_flux(num_ghost+n,num_ghost+p,j,l) -angular_flux(n,p,j,l); 
                 end
             end
+            
         end
     end %end of spatial loops
             
