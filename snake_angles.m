@@ -33,7 +33,7 @@ c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
 dt = 0.1;
-nt = 60;
+nt = 100;
 normalization_tol = 1e-6;
 
 %------------------------ BOUNDARY CONDITIONS  ------------------ %
@@ -76,13 +76,18 @@ else
 end
 %Renormalize the angular parameterization for snake as a function of
 %spatial position
-% \hat{k}^i' (x^\mu) = CW^i
+% \hat{k}^i' (x^A, x^\mu) = L\hat{k}^i(x^A)
 %Another angular inconcsistency is that these arrays for propagation
 %vectors do not extend to the boundary ghost cells. So the spatial
 %advection loops operate over all cells, ghost and real, and angular
 %advection loops are only over real spatial cells. 
 mu_s = zeros(nx,ny,nxa(1),num_phi_cells,3);
 mu_b_s = zeros(nx,ny,nxa(1),nxa(2),3);
+%Store the renormazliation constant, L, since it is used in the source
+%term formulas
+normalization_s = zeros(nx,ny,nxa(1),num_phi_cells);
+normalization_b = zeros(nx,ny,nxa(1),nxa(2));
+
 for i=1:nx
     if i >= is && i<=ie %deal with ghost cells for which beta is undefined
         beta_temp = beta(i-num_ghost); 
@@ -100,17 +105,17 @@ for i=1:nx
     for j=1:ny
         for k=1:nxa(1)
             for l=1:num_phi_cells;
-                normalization_s = 1./sqrt(1+(beta_temp*mu(k,l,1)).^2 - 2*beta_temp*mu(k,l,1)*mu(k,l,2));
-                normalization_b = 1./sqrt(1+(beta_temp*mu_b(k,l,1)).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2));
-                mu_s(i,j,k,l,:) = mu(k,l,:).*normalization_s; 
-                mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b; 
+                normalization_s(i,j,k,l) = 1./sqrt(1+(beta_temp*mu(k,l,1)).^2 - 2*beta_temp*mu(k,l,1)*mu(k,l,2));
+                normalization_b(i,j,k,l) = 1./sqrt(1+(beta_temp*mu_b(k,l,1)).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2));
+                mu_s(i,j,k,l,:) = mu(k,l,:).*normalization_s(i,j,k,l); 
+                mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b(i,j,k,l); 
                 %check that each ray has unit spacelike norm in snake coords
                 assert(abs(snake_norm(squeeze(mu_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp) - 1.0) < normalization_tol);
                 assert(abs(snake_norm(squeeze(mu_b_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp)-1.0) < normalization_tol);
             end
             l=nxa(2);
-            normalization_b = 1./sqrt(1+(beta_temp*mu_b(k,l,1)).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2));
-            mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b; 
+            normalization_b(i,j,k,l) = 1./sqrt(1+(beta_temp*mu_b(k,l,1)).^2 - 2*beta_temp*mu_b(k,l,1)*mu_b(k,l,2));
+            mu_b_s(i,j,k,l,:) = mu_b(k,l,:).*normalization_b(i,j,k,l); 
             assert(snake_norm(squeeze(mu_b_s(i,j,k,l,:)),sqrt(1+beta_temp^2),beta_temp)- 1.0 < normalization_tol);
         end
     end
@@ -122,24 +127,48 @@ end
 % Compute C^2: varies from -|C2|, |C2| due to sin varying over entire range 
 % on this mesh. 
  C2 = zeros(nx_r,ny_r,nxa(1),num_phi_cells);
- %Compute parameterization derivative
- dxadk = zeros(nx_r,ny_r,nxa(1),num_phi_cells); %this shouldnt depend on \hat{k}^i' = mu_s
+ %Compute inverse parameterization derivative
+ DthetaDk2 = zeros(nx_r,ny_r,nxa(1),num_phi_cells); 
  for n=1:nx_r  
      for p=1:ny_r
          for j=1:nxa(1)
              for l=1:num_phi_cells
                 %spatial dependence: beta(x), \hat{k}^1'(x) from normalization
                 C2(n,p,j,l) = A*K^2*sin(K*xx(n))*(1+2*beta(n).^2)*mu_s(n+num_ghost,p+num_ghost,j,l,1).^2;              
-                 temp = 1+(beta(n)*mu(j,l,1)).^2 - 2*beta(n)*...
-                     mu(j,l,1)*mu(j,l,2);
-                 dxadk(n,p,j,l) = beta(n)*mu(j,l,1).^2./(temp)^(3/2)*sqrt(1- ...
-                    mu(j,l,1).^2./(temp));
+                DthetaDk2(n,p,j,l) = mu_s(n,p,j,l,1)/(mu_s(n,p,j,l,1).^2 + mu_s(n,p,j,l,2).^2);
+                
+                %temp = 1+(beta(n)*mu(j,l,1)).^2 - 2*beta(n)*...
+                %     mu(j,l,1)*mu(j,l,2);
+                 %dxadk(n,p,j,l) = beta(n)*mu(j,l,1).^2./(temp)^(3/2)*sqrt(1- ...
+                  %  mu(j,l,1).^2./(temp));
              end
          end
      end
  end
 %Angular flux speed
-vtheta = C2.*dxadk;
+vtheta = C2.*DthetaDk2;
+
+%Precompute coordinate source terms
+
+%geodesic curvature angular parameter derivative
+C2_source = zeros(nx_r,ny_r,nxa(1),num_phi_cells);
+%angular parameterization spatial derivative
+k1_source = zeros(nx_r,ny_r,nxa(1),num_phi_cells);
+for n=1:nx_r  
+    for p=1:ny_r
+        for j=1:nxa(1)
+            for l=1:num_phi_cells
+                C2_source(n,p,j,l) = A*K^2*sin(K*xx(n))*(1+2*beta(n).^2)*(...
+                    -3*normalization_s(n,p,j,l)*mu(j,l,1)^2*mu(j,l,2) -...
+                    1/2*normalization_s(n,p,j,l).^3*mu(j,l,1)^3*(2*beta(n)*...
+                    mu(j,l,2)^2-2*beta(n)^2*mu(j,l,1)*mu(j,l,2) - 2*beta(n)...
+                    *mu(j,l,1)^2));
+                k1_source(n,p,j,l) = -normalization_s(n,p,j,l).^3*(A*K^2*mu(j,l,2)*mu(j,l,1)*sin(K*xx(n))-...
+                    A^2*K^3*mu(j,l,1)^2*sin(K*xx(n))*cos(K*xx(n))); 
+            end
+        end
+    end
+end
 
 %------------------------ INTENSITY AND FLUID VELOCITY ------------------ %
 %Monochromatic specific intensity, boundary conditions at 2,nz-1 
@@ -186,7 +215,7 @@ v(:,:,1) = 0.0*C;
 [nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
 
 %------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 5; 
+output_interval = 10; 
 num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
@@ -260,7 +289,11 @@ for i=0:nt
                 for l=1:num_phi_cells
                     %theta flux
                     if vtheta(n,p,j,l) > 0 %counterclockwise speed
-                        %maybe this shouldnt be periodic in \theta
+                        %debugging nonconservation of angular flux:
+                        %-- maybe this shouldnt be periodic in \theta
+                        %-- should dt be on the outside of the flux????
+                        %yes,bc we are FE differencing the time derivative
+                        %and multiplying through by dt
                         if j-1 == 0
                           i_flux(n,p,j,l,1) = intensity(n+num_ghost,p+num_ghost,nxa(1),l,1); %flux entering "left" boundary                          
                         else
@@ -277,18 +310,26 @@ for i=0:nt
             for j=1:nxa(1)
                 for l=1:num_phi_cells
                     if j == nxa(1)
-                        angular_flux(n,p,j,l) = dt*vtheta(n,p,j,l)/dtheta.*(i_flux(n,p,1,l,1) - i_flux(n,p,j,l,1));                   
+                        angular_flux(n,p,j,l) = dt/dtheta.*(vtheta(n,p,1,l)*i_flux(n,p,1,l,1) - vtheta(n,p,j,l)*i_flux(n,p,j,l,1));                   
+                        %angular_flux(n,p,j,l) = dt*vtheta(n,p,j,l)/dtheta.*(i_flux(n,p,1,l,1) - i_flux(n,p,j,l,1));                   
                     else
-                        angular_flux(n,p,j,l) = dt*vtheta(n,p,j,l)/dtheta.*(i_flux(n,p,j+1,l,1) - i_flux(n,p,j,l,1));
+                        angular_flux(n,p,j,l) = dt/dtheta.*(vtheta(n,p,j+1,l)*i_flux(n,p,j+1,l,1) - vtheta(n,p,j,l)*i_flux(n,p,j,l,1));
+                        %angular_flux(n,p,j,l) = dt*vtheta(n,p,j,l)/dtheta.*(i_flux(n,p,j+1,l,1) - i_flux(n,p,j,l,1));
                     end
-                    intensity(num_ghost+n,num_ghost+p,j,l) = intensity(num_ghost+n,num_ghost+p,j,l) ...
-                        -net_flux(num_ghost+n,num_ghost+p,j,l) -angular_flux(n,p,j,l); 
+                    %intensity(num_ghost+n,num_ghost+p,j,l) = intensity(num_ghost+n,num_ghost+p,j,l) ...
+                    %    -net_flux(num_ghost+n,num_ghost+p,j,l) -angular_flux(n,p,j,l); 
                 end
             end
             
         end
     end %end of spatial loops
-            
+    
+    %Substep #2: Add coordinate source terms
+   
+    intensity(is:ie,js:je,:,:) = intensity(is:ie,js:je,:,:) ...
+                        -net_flux(is:ie,js:je,:,:) -angular_flux ...
+                        +dt*intensity(is:ie,js:je,:,:).*(k1_source + C2_source); 
+          
     %------------------------ NON-TIME SERIES OUTPUT ------------------ %
     if ~mod(i,output_interval)
         time
