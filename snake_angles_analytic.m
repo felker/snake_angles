@@ -5,7 +5,7 @@ clear all;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 50; %ought to be divisible by 10
+nx = 40; %ought to be divisible by 10
 ny = nx;
 
 c = 1.0;
@@ -44,8 +44,8 @@ end
 xx=linspace(0,lx,nx_r)';
 yy=linspace(0,ly,ny_r)';
 %extend these arrays to ghost cells
-xx = linspace(-num_ghost*dx,lx+num_ghost*dx,nx)';
-yy = linspace(-num_ghost*dy,ly+num_ghost*dy,ny)';
+xx_e = linspace(-num_ghost*dx,lx+num_ghost*dx,nx)';
+yy_e = linspace(-num_ghost*dy,ly+num_ghost*dy,ny)';
 
 %Monochromatic specific intensity, boundary conditions at 2,nz-1 
 intensity_analytic = zeros(nx,ny,nxa(1),num_phi_cells); 
@@ -94,59 +94,63 @@ end
 injection_ix = ie;
 injection_jy = num_ghost+ny_r/2; % center of beam
 %width of beam, 1/5 of domain height
-beam_width = ny_r/5;
+beam_width = ny_r/5; %both widths count the center on the first half of width
 injection_theta = 6; 
+theta_width = 4; 
 injection_phi = phi_bin;
 for j=1:1
     intensity_analytic(injection_ix+j,(injection_jy-beam_width/2+1):(injection_jy+beam_width/2)...
-        ,injection_theta,injection_phi) = 1.0;
+        ,(injection_theta-theta_width/2+1):(injection_theta+theta_width/2),injection_phi) = 1.0;
 end
+
 %technically long characteristics....
-for k=1:beam_width
-    %i = injection_ix -num_ghost;
-    %j = injection_jy-beam_width/2+k - num_ghost;
-    j = injection_jy-beam_width/2+k;
-    i = injection_ix+1;
-    %Fill all cells in the path of the characteristic
-    x_pos = xx(i);
-    y_pos = yy(j);
-    x_dir = sign(mu(injection_theta,injection_phi,1)); %moving back or forward in x
-    y_dir = sign(mu(injection_theta,injection_phi,2));
-    slope_xy = mu(injection_theta,injection_phi,2)/mu(injection_theta,injection_phi,1); 
-    neighbor_x = i + x_dir;
-    neighbor_y = j + y_dir;
+for l=(injection_theta-theta_width/2+1):(injection_theta+theta_width/2)
+    for k=1:beam_width
+        %i = injection_ix -num_ghost;
+        %j = injection_jy-beam_width/2+k - num_ghost;
+        j = injection_jy-beam_width/2+k;
+        i = injection_ix+1;
+        %Fill all cells in the path of the characteristic
+        x_pos = xx_e(i);
+        y_pos = yy_e(j);
+        x_dir = sign(mu(l,injection_phi,1)); %moving back or forward in x
+        y_dir = sign(mu(l,injection_phi,2));
+        slope_xy = mu(l,injection_phi,2)/mu(l,injection_phi,1); 
+        neighbor_x = i + x_dir;
+        neighbor_y = j + y_dir;
 
-    while (neighbor_x >= 1 && neighbor_y >= 1 && neighbor_x <= nx && neighbor_y <= ny) 
-        %at one of four boundaries of a cell
-        if x_dir > 0
-            Dx = (xx(neighbor_x) - dx/2 - x_pos); 
-        else
-            Dx = (x_pos - xx(neighbor_x) - dx/2); 
-        end
+        while (neighbor_x >= 1 && neighbor_y >= 1 && neighbor_x <= nx && neighbor_y <= ny) 
+            %at one of four boundaries of a cell
+            if x_dir > 0
+                Dx = (xx_e(neighbor_x) - dx/2 - x_pos); 
+            else
+                Dx = (x_pos - xx_e(neighbor_x) - dx/2); 
+            end
 
-        if y_dir > 0
-            Dy = (yy(neighbor_y) - dy/2 - y_pos);         
-        else
-            Dy = (y_pos - dy/2 - yy(neighbor_y));                
-        end
-        %see if characteristic hits x or y boundary first
-        %x first
-        if Dx/abs(mu(injection_theta,injection_phi,1)) <  ...
-                Dy/abs(mu(injection_theta,injection_phi,2))
-            i = neighbor_x; 
-            neighbor_x = neighbor_x + x_dir;
-            x_pos = xx(i)-x_dir*dx/2;
-            y_pos = y_pos + y_dir*abs(slope_xy)*Dx;
-            intensity_analytic(i,j,injection_theta,injection_phi) = 1.0;
-        else
-            j = neighbor_y; 
-            neighbor_y = neighbor_y + y_dir;
-            y_pos = yy(j)-y_dir*dy/2;
-            x_pos = x_pos + x_dir*abs(Dy/slope_xy);
-            intensity_analytic(i,j,injection_theta,injection_phi) = 1.0;
-        end
-        %CANNOT HANDLE CORNER ADVECTION
+            if y_dir > 0
+                Dy = (yy_e(neighbor_y) - dy/2 - y_pos);         
+            else
+                Dy = (y_pos - dy/2 - yy_e(neighbor_y));                
+            end
+            %see if characteristic hits x or y boundary first
+            %x first
+            if Dx/abs(mu(l,injection_phi,1)) <  ...
+                    Dy/abs(mu(l,injection_phi,2))
+                i = neighbor_x; 
+                neighbor_x = neighbor_x + x_dir;
+                x_pos = xx_e(i)-x_dir*dx/2;
+                y_pos = y_pos + y_dir*abs(slope_xy)*Dx;
+                intensity_analytic(i,j,l,injection_phi) = 1.0;
+            else
+                j = neighbor_y; 
+                neighbor_y = neighbor_y + y_dir;
+                y_pos = yy_e(j)-y_dir*dy/2;
+                x_pos = x_pos + x_dir*abs(Dy/slope_xy);
+                intensity_analytic(i,j,l,injection_phi) = 1.0;
+            end
+            %CANNOT HANDLE CORNER ADVECTION
 
+        end
     end
 end
 %h= pcolor(xx,yy,intensity_analytic(:,:,6,1)');
@@ -160,18 +164,17 @@ for j=1:nxa(1)
     %Ray intensity plots
     l=phi_bin; %select phi bin
     hi = subplot(3,4,j); 
-    h = pcolor(xx,yy,intensity_analytic(:,:,j,l)');
-   % h = pcolor(xx,yy,intensity_analytic(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2,j,l)');
+    %h = pcolor(xx,yy,intensity_analytic(:,:,j,l)');
+    h = pcolor(xx,yy,intensity_analytic(is:ie,js:je,j,l)');
     %turn off grid lines
     set(h, 'EdgeColor', 'none');
-    %subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-    %    num2str(mu(j,l,3),'%.3f'),')'];
-    %title(subtitle,'Interpreter','latex');      
+    subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+        num2str(mu(j,l,3),'%.3f'),')'];
+    title(subtitle,'Interpreter','latex');      
     xlabel('x');
     ylabel('y');
     colorbar
 end
-
 %TRANSFORM INTENSITY SOLUTION to snake angular bins (spatial cells should be the
 %same)
 
@@ -207,12 +210,12 @@ for n=1:nx_r %should use overlap of solid angle bins
         for j=1:nxa(1) % even though we only have one nonzero theta bin in current 
             %cartesian problem
             for l=num_phi_cells
-                %Transform from Cartesian basis to Snake Basis
+                %Transform rays from Cartesian basis to Snake Basis
                 mu_prime = zeros(3,1); 
                 mu_prime(1) = mu(j,l,1);
                 mu_prime(2) = (mu(j,l,2) + A*K*cos(K*xx(n))*mu(j,l,1));
                 mu_prime(3) = mu(j,l,3);
-                %check that transformed vector has norm 1 in snake coords
+                %check that transformed vector has norm 1 in snake metric
                 assert(abs(snake_norm(mu_prime,sqrt(1+beta(n)^2),beta(n)) - 1.0) < normalization_tol);
 
                 %find new mu bin
@@ -222,7 +225,8 @@ for n=1:nx_r %should use overlap of solid angle bins
                     else
                         neighbor = k+1;
                     end
-                      %sort by theta bin! use 4 quadrant arctangent
+                      %sort by theta bin! use 4 quadrant arctangent which
+                      %returns [-pi, pi]
                       transformed_theta_prime = atan2(mu_prime(2),mu_prime(1)) +pi;
                       lower_b_theta = atan2(mu_b_s(n,p,k,l,2),mu_b_s(n,p,k,l,1)) + pi; 
                       upper_b_theta = atan2(mu_b_s(n,p,neighbor,l,2),mu_b_s(n,p,neighbor,l,1)) +pi;
@@ -251,9 +255,9 @@ for j=1:nxa(1)
     h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity_analytic_s(:,:,j,l));
     %turn off grid lines
     set(h, 'EdgeColor', 'none');
-    %subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-    %    num2str(mu(j,l,3),'%.3f'),')'];
-    %title(subtitle,'Interpreter','latex');      
+    subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+        num2str(mu(j,l,3),'%.3f'),')'];
+    title(subtitle,'Interpreter','latex');      
     xlabel('x');
     ylabel('y + A sin(kx)');
     colorbar
