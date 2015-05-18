@@ -26,14 +26,14 @@ N = 12;
 %artificial division:
 lx = 7*pi./(2*0.1); %k=0.1 here
 ly = lx; 
-nx = 40;
+nx = 100;
 ny = nx;
 
 c = 1.0;
 dx = lx/nx;
 dy = ly/ny;
-dt = 0.1;
-nt = 100;
+dt = 0.05;
+nt = 400;
 normalization_tol = 1e-6;
 
 %------------------------ BOUNDARY CONDITIONS  ------------------ %
@@ -135,7 +135,8 @@ end
              for l=1:num_phi_cells
                 %spatial dependence: beta(x), \hat{k}^1'(x) from normalization
                 C2(n,p,j,l) = A*K^2*sin(K*xx(n))*(1+2*beta(n).^2)*mu_s(n+num_ghost,p+num_ghost,j,l,1).^2;              
-                DthetaDk2(n,p,j,l) = mu_s(n,p,j,l,1)/(mu_s(n,p,j,l,1).^2 + mu_s(n,p,j,l,2).^2);
+                DthetaDk2(n,p,j,l) = mu_s(n+num_ghost,p+num_ghost,j,l,1)/(mu_s(n+num_ghost,p+num_ghost,j,l,1).^2 +...
+                    mu_s(n+num_ghost,p+num_ghost,j,l,2).^2);
                 
                 %temp = 1+(beta(n)*mu(j,l,1)).^2 - 2*beta(n)*...
                 %     mu(j,l,1)*mu(j,l,2);
@@ -215,7 +216,7 @@ v(:,:,1) = 0.0*C;
 [nv, vvnn, vCsquare, vsquare, absV] = update_velocity_terms(v,mu,C);
 
 %------------------------ OUTPUT VARIABLES------------------------------ %
-output_interval = 10; 
+output_interval = 50; 
 num_output = 8; %number of data to output
 num_pts = nt/output_interval; 
 time_out = dt*linspace(0,nt+output_interval,num_pts+1); %extra pt for final step
@@ -247,10 +248,11 @@ for i=0:nt
     %width of beam, 1/5 of domain height
     beam_width = ny_r/5;
     injection_theta = 6; 
+    theta_width = 4; 
     injection_phi = phi_bin;
     for j=1:num_ghost
         intensity(injection_ix+j,(injection_jy-beam_width/2+1):(injection_jy+beam_width/2)...
-            ,injection_theta,injection_phi) = 1.0;
+        ,(injection_theta-theta_width/2+1):(injection_theta+theta_width/2),injection_phi) = 1.0;
     end 
     
     %Substep #1: Explicitly advance transport term
@@ -258,9 +260,7 @@ for i=0:nt
     %x-flux
     for j=1:nxa(1) %do all nx, ny at once
         for l=1:num_phi_cells 
-            %cannot pull mu out from partial, since it changes with x
-            %position
-        %i_flux = upwind_interpolate2D_snake(mu(j,l,1)*(intensity(:,:,j,l)),dt,dx,ones(nx,ny)*C*sign(mu(j,l,1)),is,ie+1,js,je+1,1);
+        %cannot pull mu out from partial, since it changes with x-position
         i_flux = upwind_interpolate2D_snake(mu_s(:,:,j,l,1).*(intensity(:,:,j,l)),dt,dx,C.*sign(mu_s(:,:,j,l,1)),is,ie+1,js,je+1,1);
         net_flux(is:ie,js:je,j,l) = dt*C/dx*(i_flux(is+1:ie+1,js:je) - i_flux(is:ie,js:je));
         end
@@ -269,7 +269,6 @@ for i=0:nt
     %y-flux
     for j=1:nxa(1) %do all nx, ny at once
         for l=1:num_phi_cells
-        %i_flux = upwind_interpolate2D_snake(mu(j,l,2)*(intensity(:,:,j,l)),dt,dy,ones(nx,ny)*C*sign(mu(j,l,2)),is,ie+1,js,je+1,2);
         i_flux = upwind_interpolate2D_snake(mu_s(:,:,j,l,2).*(intensity(:,:,j,l)),dt,dy,C.*sign(mu_s(:,:,j,l,2)),is,ie+1,js,je+1,2);
         net_flux(is:ie,js:je,j,l) = net_flux(is:ie,js:je,j,l)+ dt*C/dy*(i_flux(is:ie,js+1:je+1) - i_flux(is:ie,js:je));
         end
@@ -287,20 +286,25 @@ for i=0:nt
         for p=1:ny_r
             for j=1:nxa(1) %edit out for easy periodic circular shifts
                 for l=1:num_phi_cells
-                    %theta flux
-                    if vtheta(n,p,j,l) > 0 %counterclockwise speed
+                    %velocity at interface u_{j+1/2} via linear
+                    %interpolation
+                    if j-1 ==0
+                        ave_vel = 0.5*(vtheta(n,p,j,l) + vtheta(n,p,nxa(1),l));
+                    else
+                        ave_vel = 0.5*(vtheta(n,p,j,l) + vtheta(n,p,j-1,l));
+                    end
+                    if ave_vel > 0
+                    %if vtheta(n,p,j,l) > 0 %counterclockwise speed
                         %debugging nonconservation of angular flux:
                         %-- maybe this shouldnt be periodic in \theta
-                        %-- should dt be on the outside of the flux????
-                        %yes,bc we are FE differencing the time derivative
-                        %and multiplying through by dt
                         if j-1 == 0
-                          i_flux(n,p,j,l,1) = intensity(n+num_ghost,p+num_ghost,nxa(1),l,1); %flux entering "left" boundary                          
+                          i_flux(n,p,j,l,1) = ave_vel*intensity(n+num_ghost,p+num_ghost,nxa(1),l,1); %flux entering "left" boundary                          
                         else
-                          i_flux(n,p,j,l,1) = intensity(n+num_ghost,p+num_ghost,j-1,l,1); %flux entering "left" boundary                          
+                          i_flux(n,p,j,l,1) = ave_vel*intensity(n+num_ghost,p+num_ghost,j-1,l,1); %flux entering "left" boundary                          
                         end
-                    elseif vtheta(n,p,j,l) < 0 %clockwise 
-                        i_flux(n,p,j,l,1) = intensity(n+num_ghost,p+num_ghost,j,l,1);  %flux leaving left boundary          
+                    %elseif vtheta(n,p,j,l) < 0 %clockwise
+                    elseif ave_vel < 0
+                        i_flux(n,p,j,l,1) = ave_vel*intensity(n+num_ghost,p+num_ghost,j,l,1);  %flux leaving left boundary          
                     end
                 end
                 %phi flux
@@ -310,11 +314,13 @@ for i=0:nt
             for j=1:nxa(1)
                 for l=1:num_phi_cells
                     if j == nxa(1)
-                        angular_flux(n,p,j,l) = dt/dtheta.*(vtheta(n,p,1,l)*i_flux(n,p,1,l,1) - vtheta(n,p,j,l)*i_flux(n,p,j,l,1));                   
+                        %angular_flux(n,p,j,l) = dt*C/dtheta.*(vtheta(n,p,1,l)*i_flux(n,p,1,l,1) - vtheta(n,p,j,l)*i_flux(n,p,j,l,1));                   
                         %angular_flux(n,p,j,l) = dt*vtheta(n,p,j,l)/dtheta.*(i_flux(n,p,1,l,1) - i_flux(n,p,j,l,1));                   
+                        angular_flux(n,p,j,l) = dt*C/dtheta.*(i_flux(n,p,1,l,1) - i_flux(n,p,j,l,1));                   
                     else
-                        angular_flux(n,p,j,l) = dt/dtheta.*(vtheta(n,p,j+1,l)*i_flux(n,p,j+1,l,1) - vtheta(n,p,j,l)*i_flux(n,p,j,l,1));
+                        %angular_flux(n,p,j,l) = dt*C/dtheta.*(vtheta(n,p,j+1,l)*i_flux(n,p,j+1,l,1) - vtheta(n,p,j,l)*i_flux(n,p,j,l,1));
                         %angular_flux(n,p,j,l) = dt*vtheta(n,p,j,l)/dtheta.*(i_flux(n,p,j+1,l,1) - i_flux(n,p,j,l,1));
+                        angular_flux(n,p,j,l) = dt*C/dtheta.*(i_flux(n,p,j+1,l,1) - i_flux(n,p,j,l,1));
                     end
                     %intensity(num_ghost+n,num_ghost+p,j,l) = intensity(num_ghost+n,num_ghost+p,j,l) ...
                     %    -net_flux(num_ghost+n,num_ghost+p,j,l) -angular_flux(n,p,j,l); 
@@ -323,43 +329,106 @@ for i=0:nt
             
         end
     end %end of spatial loops
+    %check that the angular flux formulation is truly conservative
+    if(abs(max(max(max(sum(angular_flux,3))))) > normalization_tol)
+        error('conservation in local angular bins violated!');
+    end
     
     %Substep #2: Add coordinate source terms
    
     intensity(is:ie,js:je,:,:) = intensity(is:ie,js:je,:,:) ...
-                        -net_flux(is:ie,js:je,:,:) -angular_flux ...
-                        +dt*intensity(is:ie,js:je,:,:).*(k1_source + C2_source); 
+                        -net_flux(is:ie,js:je,:,:) - angular_flux ...
+                        +dt*C*intensity(is:ie,js:je,:,:).*(k1_source + C2_source); 
           
     %------------------------ NON-TIME SERIES OUTPUT ------------------ %
     if ~mod(i,output_interval)
         time
-        h = figure(2);
-        set(h,'name','Covariant snake solution','numbertitle','off');
+        h1 = figure(2);
+        clf(h1); 
+        set(h1,'name','Covariant snake solution','numbertitle','off');
         time_title = sprintf('t = %.3f (s)',time); %dont know where to add this above all subplots
         for j=1:nxa(1)
             %Ray intensity plots
             l=phi_bin; %select phi bin
-            hi = subplot(3,4,j); 
+            h(j) = subplot(3,4,j);%,'Parent',figure(2),'Clim',[0 1]); 
             %since we pass matrices for the coordinates, do not transpose
             %intensity matrix
-            h = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity(is:ie,js:je,j,l));
+            h(j) = pcolor(xx*ones(1,nx_r),ones(ny_r,1)*yy'+A*sin(xx*ones(1,nx_r).*K),intensity(is:ie,js:je,j,l));
             %turn off grid lines
-            set(h, 'EdgeColor', 'none');
-            
+            set(h(j), 'EdgeColor', 'none');
+            caxis manual
+            caxis([0 1]);
             %this string formatter doesnt work on laptop for some reason
             %subtitle = sprintf('$$\hat{k}^i_{Cartesian}$$ =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-            subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
-            title(subtitle);
-            %subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
-            %    num2str(mu(j,l,3),'%.3f'),')'];
-            %title(subtitle,'Interpreter','latex');      
+            %subtitle = sprintf('mu =(%0.3f, %0.3f,%0.3f)',mu(j,l,1),mu(j,l,2),mu(j,l,3));
+            %title(subtitle);
+            subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+                num2str(mu(j,l,3),'%.3f'),')'];
+            title(subtitle,'Interpreter','latex');      
             xlabel('x');
             ylabel('y + A sin(kx)');
             colorbar
         end
-        %Mean intensity plot
-        %figure(3);
-        %pcolor(xx,yy,rad_energy(num_ghost+1:nx_r+2,num_ghost+1:ny_r+2)')
         pause(0.1)
     end
+end
+
+
+%Transform solution to Cartesian basis:
+intensity_cartesian = zeros(nx_r,ny_r,nxa(1),num_phi_cells); 
+for n=1:nx_r %should use overlap of solid angle bins
+    for p=1:ny_r
+        for j=1:nxa(1) % even though we only have one nonzero theta bin in current 
+            %cartesian problem
+            for l=num_phi_cells
+                %Transform rays from Snake Basis to Cartesian Basis
+                mu_prime = zeros(3,1); 
+                mu_prime(1) = mu_s(n+num_ghost,p+num_ghost,j,l,1);
+                mu_prime(2) = (mu_s(n+num_ghost,p+num_ghost,j,l,2) - ...
+                    A*K*cos(K*xx(n))*mu_s(n+num_ghost,p+num_ghost,j,l,1));
+                mu_prime(3) = mu_s(n+num_ghost,p+num_ghost,j,l,3);
+                %check that transformed vector has norm 1 in cartesian metric
+                assert(abs(mu_prime'*mu_prime -1.0) < normalization_tol);
+                %find new mu bin
+                for k=1:nxa(1)
+                    if k==nxa(1) %theta bins are ordered and periodic
+                        neighbor = 1; 
+                    else
+                        neighbor = k+1;
+                    end
+                      %sort by theta bin! use 4 quadrant arctangent which
+                      %returns [-pi, pi]
+                      transformed_theta_prime = atan2(mu_prime(2),mu_prime(1)) +pi;
+                      lower_b_theta = atan2(mu_b(k,l,2),mu_b(k,l,1)) + pi; 
+                      upper_b_theta = atan2(mu_b(neighbor,l,2),mu_b(neighbor,l,1)) +pi;
+                      if (upper_b_theta == 0.0) %this happens a lot
+                          upper_b_theta = 2*pi; 
+                      end
+                      
+                      if (transformed_theta_prime >= lower_b_theta) && (transformed_theta_prime ...
+                              <= upper_b_theta)
+                        intensity_cartesian(n,p,k,l) = intensity_cartesian(n,p,k,l) +...
+                            intensity(n+num_ghost,p+num_ghost,j,l);
+                      end
+                end                         
+            end
+        end
+    end
+end
+h = figure(66);
+clf;
+set(h,'name','Cartesian transformation of snake solution','numbertitle','off');
+for j=1:nxa(1)
+    %Ray intensity plots
+    l=phi_bin; %select phi bin
+    hi = subplot(3,4,j); 
+    h = pcolor(xx,yy,intensity_cartesian(:,:,j,l)');
+    %turn off grid lines
+    set(h, 'EdgeColor', 'none');
+    subtitle = ['$$\hat{k}^i_{Cartesian} = $$ (',num2str(mu(j,l,1),'%.3f'),',',num2str(mu(j,l,2),'%.3f'),',',...
+        num2str(mu(j,l,3),'%.3f'),')'];
+    title(subtitle,'Interpreter','latex');      
+    xlabel('x');
+    ylabel('y');
+    colorbar
 end
